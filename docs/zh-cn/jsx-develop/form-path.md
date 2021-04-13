@@ -138,6 +138,7 @@ const App = () => {
                       { label: '显示', value: true },
                       { label: '隐藏', value: false }
                     ]}
+                    initialValue={true}
                     component={Select}
                   />
                   <FormItem
@@ -164,6 +165,17 @@ const App = () => {
             >
               ADD
             </Button>
+            <Button
+              type="primary"
+              onClick={() => {
+                mutators.insert(1, {
+                  aa: true,
+                  bb: 'hello world'
+                })
+              }}
+            >
+              Insert
+            </Button>
           </div>
         )}
       </FieldList>
@@ -176,7 +188,7 @@ ReactDOM.render(<App />, document.getElementById('root'))
 
 **案例解析**
 
-- 在 onFieldValueChange\$入参中使用\*批量匹配数组第 n 项的 aa 字段
+- 在 `onFieldValueChange$`入参中使用\*批量匹配数组第 n 项的 aa 字段
 - 使用 FormPath.transform 将一个路径转换成另外一个路径，目前该例子主要用于转换成相邻路径
 
 ## 使用路径匹配能力批量操作字段状态

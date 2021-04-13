@@ -16,6 +16,7 @@ import {
   registerValidationFormats,
   registerValidationMTEngine,
   registerValidationRules,
+  BigData,
   FormPath,
   FormPathPattern,
   FormEffectHooks,
@@ -28,9 +29,12 @@ import {
   useVirtualField,
   useFormQuery
 } from '@formily/react'
+import { useSchemaForm } from './hooks/useSchemaForm'
+import { useSchemaProps } from './hooks/useSchemaProps'
 export * from './components/SchemaField'
 export * from './components/SchemaForm'
 export * from './components/SchemaMarkup'
+export * from './shared/context'
 export * from './shared/connect'
 export * from './shared/registry'
 export * from './shared/schema'
@@ -45,6 +49,7 @@ export {
   InternalVirtualField,
   InternalFieldList,
   InternalForm,
+  BigData,
   FormSpy,
   FormPath,
   FormProvider,
@@ -60,6 +65,8 @@ export {
   useField,
   useFieldState,
   useForm,
+  useSchemaForm,
+  useSchemaProps,
   useFormEffects,
   useFormSpy,
   useFormState,

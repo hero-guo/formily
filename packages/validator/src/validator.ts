@@ -20,6 +20,8 @@ import {
   isObj,
   isValid,
   each,
+  log,
+  reduce,
   FormPath,
   FormPathPattern
 } from '@formily/shared'
@@ -168,41 +170,54 @@ class FormValidator {
     pattern: FormPath,
     options: ValidateFieldOptions
   ): Promise<ValidateNodeResult> {
-    const errors = []
-    const warnings = []
-    let promise = Promise.resolve({ errors, warnings })
-    each<ValidateNodeMap, ValidateNode>(this.nodes, (validator, path) => {
-      if (
-        isFn(this.matchStrategy)
-          ? this.matchStrategy(pattern, path)
-          : pattern.match(path)
-      ) {
-        promise = promise.then(async ({ errors, warnings }) => {
-          const result = await validator(options)
-          return {
-            errors: result.errors.length
-              ? errors.concat({
-                  path: path.toString(),
-                  messages: result.errors
+    let errors = []
+    let warnings = []
+    try {
+      const nodeKey = pattern.toString()
+      const node = this.nodes[nodeKey]
+      const matchNodes = node ? { [nodeKey]: node } : this.nodes
+      await Promise.all(
+        reduce<ValidateNodeMap, ValidateNode>(
+          matchNodes,
+          (buf, validator, path) => {
+            if (
+              isFn(this.matchStrategy)
+                ? this.matchStrategy(pattern, path)
+                : pattern.match(path)
+            ) {
+              return buf.concat(
+                validator(options).then(result => {
+                  if (result.errors.length) {
+                    errors = errors.concat({
+                      path: path.toString(),
+                      messages: result.errors
+                    })
+                  }
+                  if (result.warnings.length) {
+                    warnings = warnings.concat({
+                      path: path.toString(),
+                      messages: result.warnings
+                    })
+                  }
                 })
-              : errors,
-            warnings: result.warnings.length
-              ? warnings.concat({
-                  path: path.toString(),
-                  messages: result.warnings
-                })
-              : warnings
-          }
-        })
-      }
-    })
-    return promise.catch(error => {
-      console.error(error)
+              )
+            }
+            return buf
+          },
+          []
+        )
+      )
       return {
-        errors: [],
-        warnings: []
+        errors,
+        warnings
       }
-    })
+    } catch (error) {
+      log.error(error)
+      return {
+        errors,
+        warnings
+      }
+    }
   }
 
   validate = (

@@ -4,7 +4,7 @@ exports[`test all apis markup string 1`] = `
 Object {
   "": Object {
     "displayName": "FormState",
-    "editable": undefined,
+    "editable": true,
     "errors": Array [],
     "initialValues": Object {
       "aa": "123",
@@ -12,9 +12,8 @@ Object {
     "initialized": true,
     "invalid": false,
     "loading": false,
+    "modified": true,
     "mounted": true,
-    "pristine": false,
-    "props": Object {},
     "submitting": false,
     "unmounted": false,
     "valid": true,
@@ -33,9 +32,10 @@ Object {
     "effectErrors": Array [],
     "effectWarnings": Array [],
     "errors": Array [],
-    "formEditable": undefined,
+    "formEditable": true,
     "initialValue": "123",
     "initialized": true,
+    "inputed": true,
     "invalid": false,
     "loading": false,
     "modified": true,
@@ -48,6 +48,7 @@ Object {
       "key": "aa",
       "name": "aa",
       "type": "string",
+      "version": "1.0",
       "x-props": Object {
         "data-testid": "input",
       },
@@ -66,6 +67,7 @@ Object {
       "aa change",
     ],
     "visible": true,
+    "visibleCacheValue": undefined,
     "visited": false,
     "warnings": Array [],
   },
@@ -76,7 +78,7 @@ exports[`test all apis markup virtualbox 1`] = `
 Object {
   "": Object {
     "displayName": "FormState",
-    "editable": undefined,
+    "editable": true,
     "errors": Array [],
     "initialValues": Object {
       "aa": "123",
@@ -84,9 +86,8 @@ Object {
     "initialized": true,
     "invalid": false,
     "loading": false,
+    "modified": true,
     "mounted": true,
-    "pristine": false,
-    "props": Object {},
     "submitting": false,
     "unmounted": false,
     "valid": true,
@@ -108,12 +109,10 @@ Object {
       "key": "NO_NAME_FIELD_$0",
       "name": "NO_NAME_FIELD_$0",
       "type": "object",
+      "version": "1.0",
       "visible": undefined,
       "x-component": "card",
       "x-component-props": Object {
-        "title": "this is card",
-      },
-      "x-props": Object {
         "title": "this is card",
       },
     },
@@ -129,9 +128,10 @@ Object {
     "effectErrors": Array [],
     "effectWarnings": Array [],
     "errors": Array [],
-    "formEditable": undefined,
+    "formEditable": true,
     "initialValue": "123",
     "initialized": true,
+    "inputed": true,
     "invalid": false,
     "loading": false,
     "modified": true,
@@ -144,6 +144,7 @@ Object {
       "key": "aa",
       "name": "aa",
       "type": "string",
+      "version": "1.0",
       "x-props": Object {
         "data-testid": "input",
       },
@@ -162,6 +163,7 @@ Object {
       "aa change",
     ],
     "visible": true,
+    "visibleCacheValue": undefined,
     "visited": false,
     "warnings": Array [],
   },
@@ -181,22 +183,22 @@ Object {
           "key": "aa",
           "name": "aa",
           "type": "string",
+          "version": "1.0",
           "x-props": Object {
             "data-testid": "input",
           },
         },
       },
       "type": "object",
+      "version": "1.0",
       "visible": undefined,
       "x-component": "card",
       "x-component-props": Object {
         "title": "this is card",
       },
-      "x-props": Object {
-        "title": "this is card",
-      },
     },
   },
   "type": "object",
+  "version": "1.0",
 }
 `;

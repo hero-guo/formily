@@ -1,26 +1,25 @@
 import React, { useState } from 'react'
 import { Radio, Tabs } from 'antd'
-import * as fp from 'lodash/fp'
 import _ from 'lodash'
 import { SchemaTree } from './components/SchemaTree'
 import FieldEditor from './components/FieldEditor'
 import { SchemaCode } from './components/SchemaCode'
 import JsonDialog from './components/JsonDialog'
-// import { SchemaPreview } from './components/SchemaPreview'
+import { SchemaPreview } from './components/SchemaPreview'
 import { ComponentTypes } from './utils/types'
 import {
   getDefaultComponentType,
   getComponentsByComponentType
 } from './utils/schemaHelpers'
 import 'antd/dist/antd.css'
-import './main.scss'
+import './index.css'
 
 export const SchemaEditor: React.FC<{
   className?: string
   schema: any
-  showAntdComponents: boolean
-  showFusionComponents: boolean
-  customComponents: []
+  showAntdComponents?: boolean
+  showFusionComponents?: boolean
+  customComponents?: []
   onChange: (schema: any) => void
 }> = ({
   className,
@@ -47,16 +46,18 @@ export const SchemaEditor: React.FC<{
     setSelectedPath(path)
   }
 
-  const handleCodeChange = () => {}
-
   const handleSchemaChange = (schema: string) => {
-    onChange(schema)
+    try {
+      onChange(JSON.parse(schema))
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   const isRoot = selectedPath === 'root'
 
   const selectedSchema =
-    selectedPath && (isRoot ? schema : fp.get(selectedPath, schema))
+    selectedPath && (isRoot ? schema : _.get(selectedPath, schema))
 
   return (
     <div className={`schema-editor ${className}`}>
@@ -130,12 +131,11 @@ export const SchemaEditor: React.FC<{
             <Tabs.TabPane tab="Schema源码" key="2">
               <SchemaCode
                 schema={schema}
-                onChange={handleCodeChange}
+                onChange={handleSchemaChange}
               ></SchemaCode>
             </Tabs.TabPane>
             <Tabs.TabPane tab="预览" key="3">
-              开发中，敬请期待...
-              {/* <SchemaPreview schema={schema}></SchemaPreview> */}
+              <SchemaPreview schema={schema}></SchemaPreview>
             </Tabs.TabPane>
           </Tabs>
         </div>

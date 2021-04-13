@@ -67,7 +67,12 @@ const App = () => {
         console.log(values)
       }}
     >
-      <FormItem name="name" label="Name" component={Input} />
+      <FormItem
+        name="name"
+        label="Name"
+        placeholder="Input Name"
+        component={Input}
+      />
       <FormButtonGroup>
         <Submit>查询</Submit>
         <Reset>重置</Reset>
@@ -81,8 +86,8 @@ ReactDOM.render(<App />, document.getElementById('root'))
 
 **案例解析**
 
-- FormItem组件需要传入name来标识当前字段的路径，同时可以传入与对应组件库FormItem组件一样的label属性
-- FormItem组件需要传入一个component属性来注册需要渲染的组件，该组件只需要满足value/onChange属性API即可立即使用
+- FormItem 组件需要传入 name 来标识当前字段的路径，同时可以传入与对应组件库 FormItem 组件一样的 label 属性
+- FormItem 组件需要传入一个 component 属性来注册需要渲染的组件，该组件只需要满足 value/onChange 属性 API 即可立即使用
 
 ## 开发查询列表页
 
@@ -234,6 +239,7 @@ const App = () => (
       <FormItem label="年份" name="year" component={DatePicker.YearPicker} />
       <FormItem label="月份" name="month" component={DatePicker.MonthPicker} />
       <FormItem label="时间" name="time" component={TimePicker} />
+      <FormItem label="时间范围" name="timerange" component={TimePicker.RangePicker} />
       <FormItem label="周" name="week" component={DatePicker.WeekPicker} />
       <FormItem
         label="卡片上传文件"
@@ -334,6 +340,7 @@ const getInitialValues = () => {
         date: '2020-02-20',
         month: '2020-08',
         time: '22:29:53',
+        timerange: ['9:00:00', '18:00:00'],
         week: '2020-9th',
         number: 123,
         boolean: true,
@@ -389,6 +396,7 @@ const App = () => {
           component={DatePicker.MonthPicker}
         />
         <FormItem label="时间" name="time" component={TimePicker} />
+        <FormItem label="时间范围" name="timerange" component={TimePicker.RangePicker} />
         <FormItem label="周" name="week" component={DatePicker.WeekPicker} />
         <FormItem
           label="卡片上传文件"
@@ -485,6 +493,7 @@ const getInitialValues = () => {
         month: '2020-08',
         year: '2023',
         time: '22:29:53',
+        timerange: ['9:00:00', '18:00:00'],
         week: '2020-9th',
         number: 123,
         boolean: true,
@@ -545,6 +554,7 @@ const App = () => {
           component={DatePicker.MonthPicker}
         />
         <FormItem label="时间" name="time" component={TimePicker} />
+        <FormItem label="时间范围" name="timerange" component={TimePicker.RangePicker} />
         <FormItem label="周" name="week" component={DatePicker.WeekPicker} />
         <FormItem
           label="卡片上传文件"
@@ -907,7 +917,7 @@ ReactDOM.render(<App />, document.getElementById('root'))
 - FormItem 组件，如果不传 component，可以作为一个普通布局组件，同时它也支持 name 属性，可以在联动场景下，直接操作布局组件的显示隐藏
 - FormItem 组件，不管是否传 component 或者 label 属性，它都会自带 FormItem 样式，如果期望联动控制非 FormItem 样式的布局组件，可以使用 VirtualField 组件，它是一个无 UI 组件
 - FormItemDeepProvider 可以在局部区域控制 FormItem 的 labelCol/wrapperCol
-- 数据嵌套场景，每个FormItem的name要传完整路径，这个与Schema开发的SchemaMarkupField的name规则不一样
+- 数据嵌套场景，每个 FormItem 的 name 要传完整路径，这个与 Schema 开发的 SchemaMarkupField 的 name 规则不一样
 
 ## 实现一些校验规则
 
@@ -941,7 +951,6 @@ import {
   setValidationLocale
 } from '@formily/antd' // 或者 @formily/next
 import Printer from '@formily/printer'
-import { merge } from 'rxjs'
 import { Input, Select, NumberPicker } from '@formily/antd-components' // 或者@formily/next-components
 import 'antd/dist/antd.css'
 
@@ -982,7 +991,7 @@ const App = () => {
         wrapperCol={14}
         validateFirst
         effects={({ setFieldState }) => {
-          merge(onFieldValueChange$('format_type')).subscribe(fieldState => {
+          onFieldValueChange$('format_type').subscribe(fieldState => {
             setFieldState('format_text', state => {
               state.value = placehodlers[fieldState.value]
               state.rules = fieldState.value
@@ -1046,6 +1055,7 @@ const App = () => {
           }}
           name="remote_code"
           triggerType="onBlur"
+          hasFeedback
           placeholder="Please input remote code:57350"
           component={Input}
         />
@@ -1122,6 +1132,6 @@ ReactDOM.render(<App />, document.getElementById('root'))
 - min 规则校验字段最小长度
 - max 规则校验字段最大长度
 - 对象化传参，自定义校验器用 validator
-- 自定义校验器可以返回 Promise 做异步校验，异步校验需要考虑指定`x-props.triggerType="onBlur"`，防止请求次数过多
+- 自定义校验器可以返回 Promise 做异步校验，异步校验需要考虑指定`triggerType="onBlur"`，防止请求次数过多
 - 阈值设置形态，通常采用 warning 式校验，需要在自定义校验器的返回值中指定`type:"warning"`
 - Printer 组件是用来打印数据的，目前它内部会拦截 Form 的 onSubmit 属性，然后弹窗展示提交数据

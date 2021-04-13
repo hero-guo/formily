@@ -1,24 +1,32 @@
-import React from 'react'
+import React, { useContext } from 'react'
 import {
   ISchemaFieldComponentProps,
   SchemaField,
-  Schema
+  Schema,
+  complieExpression,
+  FormExpressionScopeContext
 } from '@formily/react-schema-renderer'
 import { toArr, isFn, isArr, FormPath } from '@formily/shared'
 import { ArrayList, DragListView } from '@formily/react-shared-components'
 import { CircleButton } from '../circle-button'
 import { TextButton } from '../text-button'
-import { Table, Form, Icon } from 'antd'
+import { Table, Form } from 'antd'
 import { FormItemShallowProvider } from '@formily/antd'
+import {
+  PlusOutlined,
+  DeleteOutlined,
+  DownOutlined,
+  UpOutlined
+} from '@ant-design/icons'
 import styled from 'styled-components'
 
 const ArrayComponents = {
   CircleButton,
   TextButton,
-  AdditionIcon: () => <Icon type="plus" style={{ fontSize: 20 }} />,
-  RemoveIcon: () => <Icon type="delete" />,
-  MoveDownIcon: () => <Icon type="down" />,
-  MoveUpIcon: () => <Icon type="up" />
+  AdditionIcon: () => <PlusOutlined style={{ fontSize: 20 }} />,
+  RemoveIcon: () => <DeleteOutlined />,
+  MoveDownIcon: () => <DownOutlined />,
+  MoveUpIcon: () => <UpOutlined />
 }
 
 const DragHandler = styled.span`
@@ -34,6 +42,7 @@ const DragHandler = styled.span`
 
 export const ArrayTable: any = styled(
   (props: ISchemaFieldComponentProps & { className: string }) => {
+    const expressionScope = useContext(FormExpressionScopeContext)
     const { value, schema, className, editable, path, mutators } = props
     const {
       renderAddition,
@@ -44,14 +53,16 @@ export const ArrayTable: any = styled(
       renderExtraOperations,
       operationsWidth,
       operations,
-      dragable,
+      draggable,
       ...componentProps
     } = schema.getExtendsComponentProps() || {}
+    const schemaItems = Array.isArray(schema.items)
+      ? schema.items[schema.items.length - 1]
+      : schema.items
     const onAdd = () => {
-      const items = Array.isArray(schema.items)
-        ? schema.items[schema.items.length - 1]
-        : schema.items
-      mutators.push(items.getEmptyValue())
+      if (schemaItems) {
+        mutators.push(schemaItems.getEmptyValue())
+      }
     }
     const onMove = (dragIndex, dropIndex) => {
       mutators.move(dragIndex, dropIndex)
@@ -63,7 +74,7 @@ export const ArrayTable: any = styled(
           ...props.getExtendsProps()
         }
         return {
-          title: props.title,
+          title: complieExpression(props.title, expressionScope),
           ...itemProps,
           key,
           dataIndex: key,
@@ -73,6 +84,8 @@ export const ArrayTable: any = styled(
               <FormItemShallowProvider
                 key={newPath.toString()}
                 label={undefined}
+                labelCol={undefined}
+                wrapperCol={undefined}
               >
                 <SchemaField path={newPath} schema={props} />
               </FormItemShallowProvider>
@@ -81,12 +94,16 @@ export const ArrayTable: any = styled(
         }
       })
     }
-    let columns = isArr(schema.items)
-      ? schema.items.reduce((buf, items) => {
-          return buf.concat(renderColumns(items))
-        }, [])
-      : renderColumns(schema.items)
-    if (editable) {
+    // 兼容异步items schema传入
+    let columns = []
+    if (schema.items) {
+      columns = isArr(schema.items)
+        ? schema.items.reduce((buf, items) => {
+            return buf.concat(renderColumns(items))
+          }, [])
+        : renderColumns(schema.items)
+    }
+    if (editable && operations !== false) {
       columns.push({
         ...operations,
         key: 'operations',
@@ -117,9 +134,10 @@ export const ArrayTable: any = styled(
         }
       })
     }
-    if (dragable) {
+    if (draggable) {
       columns.unshift({
         width: 20,
+        key: 'dragHandler',
         render: () => {
           return <DragHandler className="drag-handler" />
         }
@@ -129,6 +147,9 @@ export const ArrayTable: any = styled(
       return (
         <Table
           {...componentProps}
+          rowKey={record => {
+            return toArr(value).indexOf(record)
+          }}
           pagination={false}
           columns={columns}
           dataSource={toArr(value)}
@@ -151,7 +172,7 @@ export const ArrayTable: any = styled(
             renderEmpty
           }}
         >
-          {dragable ? (
+          {draggable ? (
             <DragListView
               onDragEnd={onMove}
               nodeSelector="tr.ant-table-row"
@@ -165,9 +186,11 @@ export const ArrayTable: any = styled(
           <ArrayList.Addition>
             {({ children }) => {
               return (
-                <div className="array-table-addition" onClick={onAdd}>
-                  {children}
-                </div>
+                children && (
+                  <div className="array-table-addition" onClick={onAdd}>
+                    {children}
+                  </div>
+                )
               )
             }}
           </ArrayList.Addition>
@@ -176,7 +199,7 @@ export const ArrayTable: any = styled(
     )
   }
 )`
-  min-width: 600px;
+  width: 100%;
   margin-bottom: 10px;
   table {
     margin-bottom: 0 !important;

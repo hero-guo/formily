@@ -1,17 +1,27 @@
 import React, { useContext, Fragment } from 'react'
 import { Field, VirtualField, IFieldState } from '@formily/react'
-import { FormPath, isFn, isStr, isEqual, isValid } from '@formily/shared'
+import {
+  FormPath,
+  isFn,
+  isStr,
+  isEqual,
+  isValid,
+  log,
+  lowercase
+} from '@formily/shared'
 import {
   ISchemaFieldProps,
   ISchemaFieldComponentProps,
   ISchemaVirtualFieldComponentProps
 } from '../types'
 import { Schema } from '../shared/schema'
-import SchemaContext, {
+import {
+  FormSchemaContext,
   FormComponentsContext,
-  FormExpressionScopeContext
+  FormExpressionScopeContext,
+  SchemaFieldPropsContext
 } from '../shared/context'
-import { compileObject } from '../shared/expression'
+import { complieExpression } from '../shared/expression'
 
 const computeSchemaState = (draft: IFieldState, prevState: IFieldState) => {
   const schema = new Schema(draft.props)
@@ -37,8 +47,8 @@ export const SchemaField: React.FunctionComponent<ISchemaFieldProps> = (
   props: ISchemaFieldProps
 ) => {
   const path = FormPath.parse(props.path)
-  const formSchema = useContext(SchemaContext)
-  const fieldSchema = props.schema || formSchema.get(path)
+  const formSchema = useContext(FormSchemaContext)
+  const fieldSchema = new Schema(props.schema || formSchema.get(path))
   const formRegistry = useContext(FormComponentsContext)
   const expressionScope = useContext(FormExpressionScopeContext)
   const ErrorTipPathStr = path.toString()
@@ -58,14 +68,28 @@ export const SchemaField: React.FunctionComponent<ISchemaFieldProps> = (
   ) => {
     return <SchemaField key={reactKey} path={path.concat(addtionKey)} />
   }
+  const getPropsFromInterceptor = (stateProps) => {
+    let interceptorProps = {}
+    if (isFn(formRegistry.componentPropsInterceptor)) {
+      interceptorProps = formRegistry.componentPropsInterceptor(props) || {}
+    }
+    return {
+      ...stateProps,
+      ['x-component-props']: {
+        ...(stateProps['x-component-props'] || {}),
+        ...interceptorProps,
+      }
+    }
+  }
+
   const renderFieldDelegate = (
     callback: (props: ISchemaFieldComponentProps) => React.ReactElement
   ) => {
     return (
       <Field
         path={path}
-        initialValue={fieldSchema.default}
-        props={compileObject(
+        initialValue={complieExpression(fieldSchema.default, expressionScope)}
+        props={complieExpression(
           fieldSchema.getSelfProps(),
           expressionScope,
           (key: string) => key == 'x-linkages'
@@ -73,21 +97,39 @@ export const SchemaField: React.FunctionComponent<ISchemaFieldProps> = (
         dataType={fieldSchema.type}
         triggerType={fieldSchema.getExtendsTriggerType()}
         editable={fieldSchema.getExtendsEditable()}
-        visible={fieldSchema.getExtendsVisible()}
-        display={fieldSchema.getExtendsDisplay()}
-        required={fieldSchema.getExtendsRequired()}
-        rules={fieldSchema.getExtendsRules()}
+        visible={complieExpression(
+          fieldSchema.getExtendsVisible(),
+          expressionScope
+        )}
+        display={complieExpression(
+          fieldSchema.getExtendsDisplay(),
+          expressionScope
+        )}
+        required={complieExpression(
+          fieldSchema.getExtendsRequired(),
+          expressionScope
+        )}
+        rules={complieExpression(
+          fieldSchema.getExtendsRules(),
+          expressionScope
+        )}
         computeState={computeSchemaState}
       >
         {({ state, mutators, form }) => {
+          const stateProps = getPropsFromInterceptor(state.props)
           const props: ISchemaFieldComponentProps = {
             ...state,
-            schema: new Schema(fieldSchema).merge(state.props),
+            props: stateProps,
+            schema: new Schema(fieldSchema).merge(stateProps),
             form,
             mutators,
             renderField
           }
-          return callback(props)
+          return (
+            <SchemaFieldPropsContext.Provider value={props}>
+              {callback(props)}
+            </SchemaFieldPropsContext.Provider>
+          )
         }}
       </Field>
     )
@@ -99,16 +141,26 @@ export const SchemaField: React.FunctionComponent<ISchemaFieldProps> = (
     return (
       <VirtualField
         path={path}
-        props={compileObject(
+        visible={complieExpression(
+          fieldSchema.getExtendsVisible(),
+          expressionScope
+        )}
+        display={complieExpression(
+          fieldSchema.getExtendsDisplay(),
+          expressionScope
+        )}
+        props={complieExpression(
           fieldSchema.getSelfProps(),
           expressionScope,
           (key: string) => key == 'x-linkages'
         )}
       >
         {({ state, form }) => {
+          const stateProps = getPropsFromInterceptor(state.props)
           const props: ISchemaVirtualFieldComponentProps = {
             ...state,
-            schema: new Schema(fieldSchema).merge(state.props),
+            props: stateProps,
+            schema: new Schema(fieldSchema).merge(stateProps),
             form,
             renderField,
             children: fieldSchema.mapProperties(
@@ -124,38 +176,45 @@ export const SchemaField: React.FunctionComponent<ISchemaFieldProps> = (
             )
           }
 
-          return callback(props)
+          return (
+            <SchemaFieldPropsContext.Provider value={props}>
+              {callback(props)}
+            </SchemaFieldPropsContext.Provider>
+          )
         }}
       </VirtualField>
     )
   }
 
+  const renderProperties = () => {
+    return fieldSchema.mapProperties((schema: Schema, key: string) => {
+      const childPath = path.concat(key)
+      return (
+        <SchemaField
+          schema={schema}
+          key={childPath.toString()}
+          path={childPath}
+        />
+      )
+    })
+  }
+
   if (fieldSchema.isObject() && !schemaComponent) {
-    const properties = fieldSchema.mapProperties(
-      (schema: Schema, key: string) => {
-        const childPath = path.concat(key)
-        return (
-          <SchemaField
-            schema={schema}
-            key={childPath.toString()}
-            path={childPath}
-          />
-        )
-      }
-    )
-    if (path.length == 0) {
-      return <Fragment>{properties}</Fragment>
+    if (path.length == 0 || props.onlyRenderProperties) {
+      return <Fragment>{renderProperties()}</Fragment>
     }
     return renderFieldDelegate(props => {
       const renderComponent = () => {
         if (!formRegistry.formItemComponent) {
-          console.error(`[Formily Error]: Can not found any component.Its key is ${ErrorTipPathStr}.`)
+          log.error(
+            `Can not found any component.Its key is ${ErrorTipPathStr}.`
+          )
           return null
         }
         return React.createElement(
           formRegistry.formItemComponent,
           props,
-          properties
+          renderProperties()
         )
       }
       if (isFn(schemaRenderer)) {
@@ -167,15 +226,20 @@ export const SchemaField: React.FunctionComponent<ISchemaFieldProps> = (
     if (isStr(initialComponent)) {
       if (formRegistry.fields[initialComponent]) {
         return renderFieldDelegate(props => {
-          const stateComponent =
+          const stateComponent = lowercase(
             props.schema.getExtendsComponent() || props.schema.type
-          if (!isStr(stateComponent)){
-            console.error(`[Formily Error]: Can not found any form component <${stateComponent}>.Its key is ${ErrorTipPathStr}.`)
-              return null
+          )
+          if (!isStr(stateComponent)) {
+            log.error(
+              `Can not found any form component <${stateComponent}>.Its key is ${ErrorTipPathStr}.`
+            )
+            return null
           }
           const renderComponent = (): React.ReactElement => {
             if (!formRegistry.fields[stateComponent]) {
-              console.error(`[Formily Error]: Can not found the field component <${stateComponent}>.Its key is ${ErrorTipPathStr}.`)
+              log.error(
+                `Can not found the field component <${stateComponent}>.Its key is ${ErrorTipPathStr}.`
+              )
               return null
             }
             return React.createElement(
@@ -191,15 +255,20 @@ export const SchemaField: React.FunctionComponent<ISchemaFieldProps> = (
         })
       } else if (formRegistry.virtualFields[initialComponent]) {
         return renderVirtualFieldDelegate(props => {
-          const stateComponent =
+          const stateComponent = lowercase(
             props.schema.getExtendsComponent() || props.schema.type
-          if (!isStr(stateComponent)){
-            console.error(`[Formily Error]: Can not found any virtual form component <${stateComponent}>.Its key is ${ErrorTipPathStr}.`)
+          )
+          if (!isStr(stateComponent)) {
+            log.error(
+              `Can not found any virtual form component <${stateComponent}>.Its key is ${ErrorTipPathStr}.`
+            )
             return null
           }
           const renderComponent = () => {
             if (!formRegistry.virtualFields[stateComponent]) {
-              console.error(`[Formily Error]: Can not found the virtual field component <${stateComponent}>.Its key is ${ErrorTipPathStr}.`)
+              log.error(
+                `Can not found the virtual field component <${stateComponent}>.Its key is ${ErrorTipPathStr}.`
+              )
               return null
             }
             return React.createElement(
@@ -214,11 +283,15 @@ export const SchemaField: React.FunctionComponent<ISchemaFieldProps> = (
           return renderComponent()
         })
       } else {
-        console.error(`[Formily Error]: Can not found the field component <${initialComponent}>.Its key is ${ErrorTipPathStr}.`)
+        log.error(
+          `Can not found the field component <${initialComponent}>.Its key is ${ErrorTipPathStr}.`
+        )
         return null
       }
     } else {
-      console.error(`[Formily Error]: Can not found the field component <${initialComponent}>.Its key is ${ErrorTipPathStr}.`)
+      log.error(
+        `Can not found the field component <${initialComponent}>.Its key is ${ErrorTipPathStr}.`
+      )
       return null
     }
   }

@@ -3,14 +3,17 @@ import { createControllerBox, Schema } from '@formily/react-schema-renderer'
 import { IFormTextBox } from '../types'
 import { toArr } from '@formily/shared'
 import { FormItemProps as ItemProps } from 'antd/lib/form'
+import { version } from 'antd'
 import { AntdSchemaFieldAdaptor, pickFormItemProps } from '@formily/antd'
 import styled from 'styled-components'
+
+const isV4 = /^4\./.test(version)
 
 export const FormTextBox = createControllerBox<IFormTextBox & ItemProps>(
   'text-box',
   styled(({ props, form, className, children }) => {
     const schema = new Schema(props)
-    const mergeProps = schema.getExtendsComponentProps(false)
+    const mergeProps = schema.getExtendsComponentProps()
     const { title, label, text, gutter, style } = Object.assign(
       {
         gutter: 5
@@ -81,7 +84,7 @@ export const FormTextBox = createControllerBox<IFormTextBox & ItemProps>(
 
     const textChildren = (
       <div
-        className={className}
+        className={`${className} ${mergeProps.className}`}
         style={{
           marginRight: -gutter / 2,
           marginLeft: -gutter / 2
@@ -93,7 +96,6 @@ export const FormTextBox = createControllerBox<IFormTextBox & ItemProps>(
     )
 
     if (!title && !label) return textChildren
-
     return (
       <AntdSchemaFieldAdaptor {...formItemProps}>
         {textChildren}
@@ -106,6 +108,7 @@ export const FormTextBox = createControllerBox<IFormTextBox & ItemProps>(
     }
     .text-box-words {
       margin-bottom: 0 !important;
+      ${isV4 ? 'line-height:32px' : ''}
     }
     .text-box-field {
       display: inline-block;

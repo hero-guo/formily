@@ -50,13 +50,35 @@ const filterProperties = <T extends object>(object: T, keys: string[]): T => {
 
 //向后兼容逻辑，未来会干掉
 const COMPAT_FORM_ITEM_PROPS = [
+  //next
   'required',
+  'prefix',
   'labelAlign',
-  'labelTextAlign',
-  'size',
+  'hasFeedback',
   'labelCol',
   'wrapperCol',
-  'triggerType'
+  'label',
+  'help',
+  'labelTextAlign',
+  'fullWidth',
+  'extra',
+  'size',
+  'asterisk',
+  'labelWidth',
+  'device',
+  'isPreview',
+  'renderPreview',
+  'validateState',
+  //antd
+  'colon',
+  'htmlFor',
+  'validateStatus',
+  'prefixCls',
+  //formily
+  'triggerType',
+  'itemStyle',
+  'itemClassName',
+  'addonAfter'
 ]
 
 export class Schema implements ISchema {
@@ -104,6 +126,8 @@ export class Schema implements ISchema {
   public ['x-component-props']?: ISchema['x-component-props']
   public ['x-render']?: ISchema['x-render']
   public ['x-effect']?: ISchema['x-effect']
+  public ['x-linkages']?: ISchema['x-linkages']
+  public ['x-mega-props']?: ISchema['x-mega-props']
   /** schema class self specs**/
 
   public parent?: Schema
@@ -113,6 +137,8 @@ export class Schema implements ISchema {
   public key?: string
 
   public path?: string
+
+  version = '1.0'
 
   constructor(json: ISchema, parent?: Schema, key?: string) {
     if (parent) {
@@ -281,12 +307,16 @@ export class Schema implements ISchema {
     if (isValid(this['x-rules'])) {
       rules = rules.concat(this['x-rules'])
     }
-
     return rules
   }
   getExtendsRequired() {
     if (isBool(this.required)) {
       return this.required
+    } else if (
+      isArr(this.parent?.required) &&
+      this.parent?.required.includes(this.key)
+    ) {
+      return true
     }
   }
   getExtendsEditable(): boolean {
@@ -315,6 +345,15 @@ export class Schema implements ISchema {
       return display
     }
   }
+
+  getMegaLayoutProps() {
+    return (
+      this['x-mega-props'] ||
+      this.getExtendsComponentProps()['mega-props'] ||
+      {}
+    )
+  }
+
   getExtendsTriggerType() {
     const itemProps = this.getExtendsItemProps()
     const props = this.getExtendsProps()
@@ -352,10 +391,11 @@ export class Schema implements ISchema {
   getExtendsProps() {
     return this['x-props'] || {}
   }
-  getExtendsComponentProps(needfilterFormItemKeys: boolean = true) {
-    const props = { ...this['x-props'], ...this['x-component-props'] }
-    if (!needfilterFormItemKeys) return props
-    return filterProperties(props, COMPAT_FORM_ITEM_PROPS)
+  getExtendsComponentProps() {
+    return {
+      ...filterProperties(this['x-props'], COMPAT_FORM_ITEM_PROPS),
+      ...this['x-component-props']
+    }
   }
   getExtendsLinkages() {
     return this['x-linkages']
@@ -419,7 +459,7 @@ export class Schema implements ISchema {
     if (isValid(json['x-component'])) {
       this['x-component'] = lowercase(json['x-component'])
     }
-    
+
     if (!isEmpty(json.properties)) {
       this.properties = map(json.properties, (item, key) => {
         return new Schema(item, this, key)
@@ -435,7 +475,7 @@ export class Schema implements ISchema {
     } else if (!isEmpty(json.items)) {
       this.items = isArr(json.items)
         ? map(json.items, item => new Schema(item, this))
-        : new Schema(json.items)
+        : new Schema(json.items, this)
       if (isValid(json.additionalItems)) {
         this.additionalItems = new Schema(json.additionalItems, this)
       }
@@ -479,18 +519,17 @@ export class Schema implements ISchema {
     propertiesName: string = 'properties'
   ) => {
     const newSchema = new Schema(schema)
-    const properties = []
+    const orderProperties = []
+    const unorderProperties = []
     each(newSchema[propertiesName], (item, key) => {
       const index = item['x-index']
-      if (typeof index === 'number') {
-        properties[index] = {
-          schema: item,
-          key
-        }
+      if (!isNaN(index)) {
+        orderProperties[index] = { schema: item, key }
       } else {
-        properties.push({ schema: item, key })
+        unorderProperties.push({ schema: item, key })
       }
     })
-    return properties.filter(item => !!item)
+
+    return orderProperties.concat(unorderProperties).filter(item => !!item)
   }
 }

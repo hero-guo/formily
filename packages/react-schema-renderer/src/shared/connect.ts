@@ -1,5 +1,7 @@
 import React from 'react'
 import { isArr, each, isFn, isValid, defaults } from '@formily/shared'
+import { useLayout } from '@formily/react'
+import hoistNonReactStatics from 'hoist-non-react-statics'
 import {
   ISchema,
   IConnectOptions,
@@ -13,9 +15,7 @@ const createEnum = (enums: any) => {
   if (isArr(enums)) {
     return enums.map(item => {
       if (typeof item === 'object') {
-        return {
-          ...item
-        }
+        return item
       } else {
         return {
           label: item,
@@ -95,8 +95,18 @@ export const connect = <ExtendsComponentKey extends string = ''>(
             schemaComponentProps[options.eventName](event, ...args)
           }
         },
-        onBlur: () => mutators.blur(),
-        onFocus: () => mutators.focus()
+        onBlur: (...args: any) => {
+          mutators.blur()
+          if (isFn(schemaComponentProps['onBlur'])) {
+            schemaComponentProps['onBlur'](...args)
+          }
+        },
+        onFocus: (...args: any) => {
+          mutators.focus()
+          if (isFn(schemaComponentProps['onFocus'])) {
+            schemaComponentProps['onFocus'](...args)
+          }
+        }
       }
       if (isValid(editable)) {
         if (isFn(editable)) {
@@ -137,6 +147,20 @@ export const connect = <ExtendsComponentKey extends string = ''>(
         delete componentProps.editable
       }
 
+      const megaProps = schema.getMegaLayoutProps()
+      const { full, size } = useLayout(megaProps)
+      if (full) {
+        componentProps.style = {
+          ...(componentProps.style || {}),
+          width: '100%',
+          flex: '1 1 0%'
+        }
+      }
+
+      if (size) {
+        componentProps.size = size
+      }
+
       return React.createElement(
         isFn(options.getComponent)
           ? options.getComponent(Component, props, fieldProps)
@@ -148,6 +172,9 @@ export const connect = <ExtendsComponentKey extends string = ''>(
     Object.assign(ConnectedComponent, {
       __ALREADY_CONNECTED__: true
     })
+    if (Component) {
+      hoistNonReactStatics(ConnectedComponent, Component)
+    }
 
     return ConnectedComponent
   }

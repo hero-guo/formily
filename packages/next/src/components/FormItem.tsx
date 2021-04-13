@@ -8,10 +8,13 @@ import {
 import {
   normalizeCol,
   pickNotFormItemProps,
-  pickFormItemProps
+  pickFormItemProps,
+  log
 } from '../shared'
+import { MegaLayoutItem } from './FormMegaLayout'
 import { useDeepFormItem } from '../context'
 import { INextFormItemProps } from '../types'
+
 const { Item: NextFormItem } = NextForm
 
 const computeStatus = (props: any) => {
@@ -52,6 +55,7 @@ export const FormItem: React.FC<INextFormItemProps> = topProps => {
     required,
     editable,
     triggerType,
+    unmountRemoveValue,
     valueName,
     eventName,
     getValueFromEvent,
@@ -66,15 +70,17 @@ export const FormItem: React.FC<INextFormItemProps> = topProps => {
   const renderComponent = ({ props, state, mutators, form }) => {
     if (!component) {
       if (children) return <Fragment>{children}</Fragment>
-      console.error(`[Formily Error]: Can't fount the component. Its key is ${name}.`)
+      log.error(`Can't fount the component. Its key is ${name}.`)
       return null
     }
     if (!component['__ALREADY_CONNECTED__']) {
-      component[ConnectedComponent] = connect({
-        eventName,
-        valueName,
-        getValueFromEvent
-      })(component)
+      component[ConnectedComponent] =
+        component[ConnectedComponent] ||
+        connect({
+          eventName,
+          valueName,
+          getValueFromEvent
+        })(component)
     }
     return React.createElement(
       component['__ALREADY_CONNECTED__']
@@ -92,22 +98,48 @@ export const FormItem: React.FC<INextFormItemProps> = topProps => {
     )
   }
 
-  const renderField = ({ form, state, mutators }) => {
+  const renderField = (fieldProps: any) => {
+    const { form, state, mutators } = fieldProps
     const { props, errors, warnings, editable, required } = state
-    const { labelCol, wrapperCol, help } = props
+    const { labelCol, wrapperCol, help, addonBefore, addonAfter } = props
     const formItemProps = pickFormItemProps(props)
     const componentProps = pickNotFormItemProps(props)
+
+    const itemProps = {
+      ...formItemProps,
+      required: editable === false ? undefined : required,
+      labelCol: formItemProps.label ? normalizeCol(labelCol) : undefined,
+      wrapperCol: formItemProps.label ? normalizeCol(wrapperCol) : undefined,
+      validateState: computeStatus(state),
+      help: computeMessage(errors, warnings) || help,
+      addonBefore,
+      addonAfter
+    }
+
     return (
-      <NextFormItem
-        {...formItemProps}
-        required={editable === false ? undefined : required}
-        labelCol={formItemProps.label ? normalizeCol(labelCol) : undefined}
-        wrapperCol={formItemProps.label ? normalizeCol(wrapperCol) : undefined}
-        validateState={computeStatus(state)}
-        help={computeMessage(errors, warnings) || help}
-      >
-        {renderComponent({ props: componentProps, state, mutators, form })}
-      </NextFormItem>
+      <MegaLayoutItem itemProps={itemProps} {...props}>
+        {megaComponentProps => {
+          if (megaComponentProps) {
+            return renderComponent({
+              props: megaComponentProps,
+              state,
+              mutators,
+              form
+            })
+          }
+          const { addonBefore, addonAfter, ...otherItemProps } = itemProps
+          return (
+            <NextFormItem {...otherItemProps}>
+              {renderComponent({
+                props: componentProps,
+                state,
+                mutators,
+                form
+              })}
+            </NextFormItem>
+          )
+        }}
+      </MegaLayoutItem>
     )
   }
 
@@ -132,6 +164,7 @@ export const FormItem: React.FC<INextFormItemProps> = topProps => {
     <InternalField
       name={name}
       initialValue={initialValue}
+      unmountRemoveValue={unmountRemoveValue}
       value={value}
       visible={visible}
       display={display}

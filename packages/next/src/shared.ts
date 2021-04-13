@@ -2,10 +2,22 @@ import React from 'react'
 import { PreviewText } from '@formily/react-shared-components'
 import {
   MergedFieldComponentProps,
-  IConnectProps
+  IConnectProps,
+  getRegistry
 } from '@formily/react-schema-renderer'
-import { each } from '@formily/shared'
+import { each, isArr } from '@formily/shared'
 export * from '@formily/shared'
+
+export const cloneChlildren = (children: any, props?: any) => {
+  return React.isValidElement(children)
+    ? React.cloneElement(children, {
+        ...props,
+        children: cloneChlildren(children.props['children'])
+      })
+    : isArr(children)
+    ? children.map((child, key) => cloneChlildren(child, { key }))
+    : children
+}
 
 export const autoScrollInValidateFailed = (formRef: any) => {
   if (formRef.current) {
@@ -59,7 +71,10 @@ const NextFormItemProps = [
   'device',
   'isPreview',
   'renderPreview',
-  'validateState'
+  'validateState',
+  'itemStyle',
+  'itemClassName',
+  'addonAfter'
 ]
 
 export const pickFormItemProps = (props: any) => {
@@ -69,6 +84,14 @@ export const pickFormItemProps = (props: any) => {
   }
   if (!props.help && props.description) {
     selected.help = props.description
+  }
+  if (selected.itemStyle) {
+    selected.style = selected.itemStyle
+    delete selected.itemStyle
+  }
+  if (selected.itemClassName) {
+    selected.className = selected.itemClassName
+    delete selected.itemClassName
   }
   return selected
 }
@@ -85,7 +108,7 @@ export const mapTextComponent = (
   const { editable } = fieldProps
   if (editable !== undefined) {
     if (editable === false) {
-      return PreviewText
+      return getRegistry().previewText || PreviewText
     }
   }
   return Target

@@ -1,4 +1,4 @@
-import { isFn, lowercase, reduce, each, deprecate } from '@formily/shared'
+import { isFn, lowercase, reduce, each, deprecate, log } from '@formily/shared'
 import {
   ComponentWithStyleComponent,
   ISchemaFieldWrapper,
@@ -14,7 +14,8 @@ const registry: ISchemaFormRegistry = {
   virtualFields: {},
   wrappers: [],
   formItemComponent: ({ children }) => children,
-  formComponent: 'form'
+  formComponent: 'form',
+  previewText: null
 }
 
 export const getRegistry = () => {
@@ -22,7 +23,8 @@ export const getRegistry = () => {
     fields: registry.fields,
     virtualFields: registry.virtualFields,
     formItemComponent: registry.formItemComponent,
-    formComponent: registry.formComponent
+    formComponent: registry.formComponent,
+    previewText: registry.previewText
   }
 }
 
@@ -30,6 +32,7 @@ export const cleanRegistry = () => {
   registry.fields = {}
   registry.virtualFields = {}
   registry.wrappers = []
+  registry.previewText = null
 }
 
 export function registerFormComponent<Props = any>(
@@ -61,6 +64,11 @@ export function registerFormField(
     (isFn(component) || typeof component.styledComponentId === 'string')
   ) {
     name = lowercase(name)
+    if (registry.fields[name]) {
+      log.warn(
+        'Component registration naming conflict. Please change the name. Globally registered components will no longer support overlay registration in the future.'
+      )
+    }
     if (noWrapper) {
       registry.fields[name] = component
       registry.fields[name].__WRAPPERS__ = []
@@ -125,3 +133,11 @@ export const registerFieldMiddleware = deprecate<
     }
   )
 })
+
+export function registerPreviewTextComponent<Props = any>(
+  component: React.JSXElementConstructor<Props>
+) {
+  if (isFn(component)) {
+    registry.previewText = component
+  }
+}
