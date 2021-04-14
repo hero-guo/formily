@@ -1,142 +1,227 @@
 import React from 'react'
-import { render, fireEvent, RenderResult } from '@testing-library/react'
+import { render, fireEvent, waitFor } from '@testing-library/react'
+import { createForm } from '@formily/core'
 import {
-  Form,
+  FormProvider,
+  ArrayField,
+  ObjectField,
+  VoidField,
   Field,
-  createFormActions,
-  createAsyncFormActions,
-  FormEffectHooks
-} from '../index'
-import { IFormActions, IFormAsyncActions } from '../types'
+  useField,
+  useFormEffects,
+  observer,
+  connect,
+  mapProps,
+  mapReadPretty,
+} from '../'
+import { ReactiveField } from '../components/ReactiveField'
+import { expectThrowError } from './shared'
+import { isField, isVoidField, onFieldChange } from '@formily/core'
+type InputProps = {
+  value?: string
+  onChange?: (...args: any) => void
+}
 
-const { onFieldValueChange$ } = FormEffectHooks
+type CustomProps = {
+  list?: string[]
+}
 
-const Radio = props => (
-  <Field {...props}>
-    {({ state, mutators }) => (
-      <div>
-        <div>show input</div>
-        <input
-          data-testid="radio1"
-          type="radio"
-          onChange={mutators.change}
-          name={props.name}
-          value="1"
-          checked={state.value === '1'}
-          disabled={!state.editable}
-        />
-        Yes
-        <br />
-        <input
-          data-testid="radio2"
-          type="radio"
-          onChange={mutators.change}
-          name={props.name}
-          checked={state.value === '0'}
-          value="0"
-          disabled={!state.editable}
-        />
-        No
-        <br />
-        <div data-testid="field-errors">{state.errors}</div>
-        <div data-testid="field-warnings">{state.warnings}</div>
-      </div>
-    )}
-  </Field>
+const Decorator: React.FC = (props) => <div>{props.children}</div>
+const Input: React.FC<InputProps> = (props) => (
+  <input
+    {...props}
+    value={props.value || ''}
+    data-testid={useField().path.toString()}
+  />
 )
 
-const Input = props => (
-  <Field {...props}>
-    {({ state, mutators }) => (
-      <div>
-        <input
-          data-testid={`input-${props.name}`}
-          disabled={!state.editable}
-          value={state.value || ''}
-          onChange={mutators.change}
-          onBlur={mutators.blur}
-          onFocus={mutators.focus}
-        />
-        <div data-testid="field-errors">{state.errors}</div>
-        <div data-testid="field-warnings">{state.warnings}</div>
-      </div>
-    )}
-  </Field>
-)
+const Normal = () => <div></div>
 
-describe('test all apis', () => {
-  let actions: IFormActions
-  let asyncActions: IFormAsyncActions
-  let onSubmitHandler: any
-  let onResetHandler: any
-  let onValidateFailedHandler: any
-  let onChangeHandler: any
+test('render field', async () => {
+  const form = createForm()
+  const onChange = jest.fn()
+  const { getByTestId, queryByTestId, unmount } = render(
+    <FormProvider form={form}>
+      <Field
+        name="aa"
+        decorator={[Decorator]}
+        component={[Input, { onChange }]}
+      />
+      <ArrayField name="bb" decorator={[Decorator]}>
+        <div data-testid="bb-children"></div>
+      </ArrayField>
+      <ObjectField name="cc" decorator={[Decorator]}>
+        <Field name="mm" decorator={[Decorator]} component={[Input]} />
+        <ObjectField name="pp" decorator={[Decorator]} />
+        <ArrayField name="tt" decorator={[Decorator]} />
+        <VoidField name="ww" />
+      </ObjectField>
+      <VoidField name="dd" decorator={[Decorator]}>
+        {() => (
+          <div data-testid="dd-children">
+            <Field name="oo" decorator={[Decorator]} component={[Input]} />
+          </div>
+        )}
+      </VoidField>
+      <VoidField name="xx" decorator={[Decorator]} component={[Normal]} />
+      <Field
+        name="ee"
+        visible={false}
+        decorator={[Decorator]}
+        component={[Input]}
+      />
+      <Field name="ff" decorator={[]} component={[]} />
+      <Field name="gg" decorator={null} component={null} />
+      <Field name="hh" decorator={[null]} component={[null, null]} />
+      <Field
+        name="kk"
+        decorator={[Decorator]}
+        component={[Input, { onChange: null }]}
+      />
+    </FormProvider>
+  )
+  expect(form.mounted).toBeTruthy()
+  expect(form.query('aa').take().mounted).toBeTruthy()
+  expect(form.query('bb').take().mounted).toBeTruthy()
+  expect(form.query('cc').take().mounted).toBeTruthy()
+  expect(form.query('dd').take().mounted).toBeTruthy()
+  fireEvent.change(getByTestId('aa'), {
+    target: {
+      value: '123',
+    },
+  })
+  fireEvent.change(getByTestId('kk'), {
+    target: {
+      value: '123',
+    },
+  })
+  expect(onChange).toBeCalledTimes(1)
+  expect(getByTestId('bb-children')).not.toBeUndefined()
+  expect(getByTestId('dd-children')).not.toBeUndefined()
+  expect(queryByTestId('ee')).toBeNull()
+  expect(form.query('aa').get('value')).toEqual('123')
+  expect(form.query('kk').get('value')).toEqual('123')
+  unmount()
+})
 
-  const renderForm = (isAsync = false): RenderResult =>
-    render(
-      <Form
-        onSubmit={onSubmitHandler}
-        onReset={onResetHandler}
-        onChange={onChangeHandler}
-        onValidateFailed={onValidateFailedHandler}
-        actions={isAsync ? asyncActions : actions}
-        effects={($, { setFieldState }) => {
-          // run effect after form mount
-          onFieldValueChange$('a1').subscribe(x => {
-            if (x.value === '0') {
-              setFieldState('a2', state => (state.visible = false))
-              setFieldState('a3', state => (state.display = false))
-            } else if (x.value === '1') {
-              setFieldState('a2', state => (state.visible = true))
-              setFieldState('a3', state => (state.display = true))
-            }
-          })
-        }}
-      >
-        <Radio name="a1" required />
-        <Input name="a2" required />
-        <Input name="a3" required />
-      </Form>
+test('render field no context', () => {
+  expectThrowError(() => {
+    return (
+      <>
+        <Field name="aa">{() => <div></div>}</Field>
+        <ArrayField name="bb">
+          <div></div>
+        </ArrayField>
+        <ObjectField name="cc" />
+        <VoidField name="dd" />
+      </>
     )
-
-  beforeAll(() => {
-    actions = createFormActions()
-    asyncActions = createAsyncFormActions()
-    onSubmitHandler = jest.fn()
-    onResetHandler = jest.fn()
-    onValidateFailedHandler = jest.fn()
-    onChangeHandler = jest.fn()
-  })
-
-  test('field visible and display', () => {
-    const { queryByTestId } = renderForm()
-    const radio1Ele = queryByTestId('radio1')
-    fireEvent.click(radio1Ele)
-    const inputA2 = queryByTestId('input-a2')
-    fireEvent.change(inputA2, { target: { value: '123' } })
-    const inputA3 = queryByTestId('input-a3')
-    fireEvent.change(inputA3, { target: { value: '456' } })
-    let formState = actions.getFormState()
-    expect(formState.values.a2).toEqual('123')
-    expect(formState.values.a3).toEqual('456')
-    const radio2Ele = queryByTestId('radio2')
-    fireEvent.click(radio2Ele)
-    formState = actions.getFormState()
-    expect(formState.values.a2).toBeUndefined()
-    expect(formState.values.a3).toEqual('456')
   })
 })
 
-describe('major scenes', () => {
-  //todo
-  test('basic', () => {
-    //todo
-  })
+test('ReactiveField', () => {
+  render(<ReactiveField field={null} />)
+  render(<ReactiveField field={null}>{() => <div></div>}</ReactiveField>)
 })
 
-describe('bugfix', () => {
-  //todo
-  test('basic', () => {
-    //todo
+test('useAttch', () => {
+  const form = createForm()
+  const MyComponent = (props: any) => {
+    return (
+      <FormProvider form={form}>
+        <Field name={props.name} decorator={[Decorator]} component={[Input]} />
+      </FormProvider>
+    )
+  }
+  const { rerender } = render(<MyComponent name="aa" />)
+  expect(form.query('aa').take().mounted).toBeTruthy()
+  rerender(<MyComponent name="bb" />)
+  expect(form.query('aa').take().mounted).toBeFalsy()
+  expect(form.query('bb').take().mounted).toBeTruthy()
+})
+
+test('useFormEffects', async () => {
+  const form = createForm()
+  const CustomField = observer((props: { tag?: string }) => {
+    const field = useField<Formily.Core.Models.Field>()
+    useFormEffects(() => {
+      onFieldChange('aa', ['value'], (target) => {
+        if (isVoidField(target)) return
+        field.setValue(target.value)
+      })
+    })
+    return <div data-testid="custom-value">{field.value}</div>
+  })
+  const { queryByTestId, rerender } = render(
+    <FormProvider form={form}>
+      <Field name="aa" decorator={[Decorator]} component={[Input]} />
+      <Field name="bb" component={[CustomField, { tag: 'xxx' }]} />
+    </FormProvider>
+  )
+  expect(queryByTestId('custom-value').textContent).toEqual('')
+  form.query('aa').take((aa) => {
+    if (isField(aa)) {
+      aa.setValue('123')
+    }
+  })
+  await waitFor(() => {
+    expect(queryByTestId('custom-value').textContent).toEqual('123')
+  })
+  rerender(
+    <FormProvider form={form}>
+      <Field name="aa" decorator={[Decorator]} component={[Input]} />
+      <Field name="bb" component={[CustomField, { tag: 'yyy' }]} />
+    </FormProvider>
+  )
+})
+
+test('connect', async () => {
+  const CustomField = connect(
+    (props: CustomProps) => {
+      return <div>{props.list}</div>
+    },
+    mapProps({ value: 'list', loading: true }, (props, field) => {
+      return {
+        ...props,
+        mounted: field.mounted ? 1 : 2,
+      }
+    }),
+    mapReadPretty(() => <div>read pretty</div>)
+  )
+  const BaseComponent = (props: any) => {
+    return <div>{props.value}</div>
+  }
+  BaseComponent.displayName = 'BaseComponent'
+  const CustomField2 = connect(
+    BaseComponent,
+    mapProps({ value: true, loading: true }),
+    mapReadPretty(() => <div>read pretty</div>)
+  )
+  const form = createForm()
+  const MyComponent = () => {
+    return (
+      <FormProvider form={form}>
+        <Field name="aa" decorator={[Decorator]} component={[CustomField]} />
+        <Field name="bb" decorator={[Decorator]} component={[CustomField2]} />
+      </FormProvider>
+    )
+  }
+  const { queryByText } = render(<MyComponent />)
+  form.query('aa').take((field) => {
+    field.setState((state) => {
+      state.value = '123'
+    })
+  })
+  await waitFor(() => {
+    expect(queryByText('123')).toBeVisible()
+  })
+
+  form.query('aa').take((field) => {
+    if (!isField(field)) return
+    field.readPretty = true
+  })
+  await waitFor(() => {
+    expect(queryByText('123')).toBeNull()
+    expect(queryByText('read pretty')).toBeVisible()
   })
 })

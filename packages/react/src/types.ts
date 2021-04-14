@@ -1,244 +1,176 @@
-import React from 'react'
-import {
-  IFieldRegistryProps,
-  IVirtualFieldRegistryProps,
-  IForm,
-  IMutators,
-  IFieldState,
-  IFormValidateResult,
-  IFormState,
-  IField,
-  IVirtualFieldState,
-  IVirtualField
-} from '@formily/core'
-import { Observable } from 'rxjs/internal/Observable'
-export * from '@formily/core'
+import { ISchema, Schema, SchemaKey } from '@formily/json-schema'
+import { FormPathPattern } from '@formily/shared'
 
-type ILayoutLabelAlign = 'top' | 'left' | 'right'
-export interface ILayoutProps {
-  hasBorder?: boolean
-  context?: any
-  isRoot?: boolean
-  isLayout?: boolean
-  defaultSettings?: any
-  children?: any
-  full?: boolean
-  layoutProps?: any
-  className?: string
-  label?: any
-  required?: boolean
-  labelAlign?: ILayoutLabelAlign
-  inline?: boolean
-  inset?: boolean
-  autoRow?: boolean
-  columns?: number
-  flex?: boolean
-  enableSafeWidth?: boolean
-  labelWidth?: number | string
-  wrapperWidth?: number | string
-  labelCol?: number
-  wrapperCol?: number
-  addonBefore?: any
-  addonAfter?: any
-  description?: any
-  gutter?: number | string
-  span?: number
-  grid?: boolean
-  contextColumns?: number
-  contextResponsive?: { lg?: number; m?: number; s?: number }
-  responsive?: { lg?: number; m?: number; s?: number }
-  size?: string
-}
+export type JSXComponent =
+  | keyof JSX.IntrinsicElements
+  | React.JSXElementConstructor<any>
 
-export type ILayoutItemProps = {
-  span?: number
-  full?: boolean
-  labelAlign?: ILayoutLabelAlign
-  inset?: boolean
-  labelWidth?: number
-  wrapperWidth?: number
-  labelCol?: number
-  wrapperCol?: number
-}
-
-export interface IFormEffect<Payload = any, Actions = any> {
-  (
-    selector: IFormExtendsEffectSelector<Payload, Actions>,
-    actions: Actions
-  ): void
-}
-
-export type IFieldMergeState = Partial<IFieldState> &
-  Partial<IVirtualFieldState>
-
-export interface IFormEffectSelector<Payload = any> {
-  (
-    type: string,
-    matcher?: string | ((payload: Payload) => boolean)
-  ): Observable<any>
-}
-
-export type IFormExtendsEffectSelector<
-  Payload = any,
-  Actions = any
-> = IFormEffectSelector<Payload> & Actions
-
-export interface IFormProps<
-  Value = {},
-  DefaultValue = {},
-  FormEffectPayload = any,
-  FormActions = any
-> {
-  value?: Value
-  defaultValue?: DefaultValue
-  initialValues?: DefaultValue
-  actions?: FormActions
-  effects?: IFormEffect<FormEffectPayload, FormActions>
-  form?: IForm
-  onChange?: (values: Value) => void
-  onSubmit?: (values: Value) => void | Promise<Value>
-  onReset?: () => void
-  onValidateFailed?: (valideted: IFormValidateResult) => void
-  children?:
-    | React.ReactElement
-    | React.ReactElement[]
-    | ((form: IForm) => React.ReactElement)
-  useDirty?: boolean
-  editable?: boolean | ((name: string) => boolean)
-  validateFirst?: boolean
-}
-
-export interface IFieldAPI {
-  state: IFieldState
-  form: IForm
-  props: {}
-  mutators: IMutators
-}
-
-export interface IVirtualFieldAPI {
-  state: IFieldState
-  form: IForm
-  props: {}
-}
-
-export interface IFieldStateUIProps extends IFieldRegistryProps {
-  triggerType?: 'onChange' | 'onBlur' | 'none'
-  getValueFromEvent?: (...args: any[]) => any
-  children?: React.ReactElement | ((api: IFieldAPI) => React.ReactElement)
-}
-
-export interface IVirtualFieldStateUIProps extends IVirtualFieldRegistryProps {
-  children?:
-    | React.ReactElement
-    | ((api: IVirtualFieldAPI) => React.ReactElement)
-}
-
-export interface IFormSpyAPI {
-  form: IForm
-  type: string
-  state: any
+export type IProviderProps = {
+  form: Formily.Core.Models.Form
 }
 
 export interface IFormSpyProps {
-  selector?: string | string[] | string[][]
-  reducer?: (
-    state: any,
-    action: { type: string; payload: any },
-    form: IForm
-  ) => any
-  initialState?: any
-  children?: React.ReactElement | ((api: IFormSpyAPI) => React.ReactElement)
+  children?: (form: Formily.Core.Models.Form) => React.ReactChild
 }
 
-export interface IFormConsumerAPI {
-  status: string
-  state: IFormState
-  submit: IForm['submit']
-  reset: IForm['reset']
-}
-
-export interface IFormConsumerProps {
-  selector?: string | string[] | string[][]
+export interface IFieldProps<
+  D extends JSXComponent,
+  C extends JSXComponent,
+  Field = Formily.Core.Models.Field
+> extends Formily.Core.Types.IFieldFactoryProps<D, C> {
   children?:
-    | React.ReactElement
-    | ((api: IFormConsumerAPI) => React.ReactElement)
+    | ((field: Field, form: Formily.Core.Models.Form) => React.ReactChild)
+    | React.ReactNode
+  decorator?: [] | [D] | [D, React.ComponentProps<D>] | any[]
+  component?: [] | [C] | [C, React.ComponentProps<C>] | any[]
 }
 
-export interface IFieldHook {
-  form: IForm
-  field: IField
-  state: IFieldState
-  props: {}
-  mutators: IMutators
+export interface IVoidFieldProps<
+  D extends JSXComponent,
+  C extends JSXComponent,
+  Field = Formily.Core.Models.VoidField
+> extends Formily.Core.Types.IVoidFieldFactoryProps<D, C> {
+  children?:
+    | ((field: Field, form: Formily.Core.Models.Form) => React.ReactChild)
+    | React.ReactNode
+  decorator?: [] | [D] | [D, React.ComponentProps<D>] | any[]
+  component?: [] | [C] | [C, React.ComponentProps<C>] | any[]
 }
 
-export interface IVirtualFieldHook {
-  form: IForm
-  field: IVirtualField
-  state: IFieldState
-  props: {}
+export interface IComponentMapper<T extends JSXComponent> {
+  (target: T): JSXComponent
 }
 
-export interface ISpyHook {
-  form: IForm
-  state: any
-  type: string
+export type IStateMapper<Props> =
+  | {
+      [key in keyof Formily.Core.Models.Field]?: keyof Props | boolean
+    }
+  | ((props: Props, field: Formily.Core.Types.GeneralField) => Props)
+
+export type SchemaComponents = Record<string, JSXComponent>
+
+export interface ISchemaFieldFactoryOptions<
+  Components extends SchemaComponents = any
+> {
+  components?: Components
+  scope?: any
 }
 
-type OMitActions =
-  | 'registerField'
-  | 'registerVirtualField'
-  | 'unsafe_do_not_use_transform_data_path'
-
-export type IFormActions = Omit<IForm, OMitActions> & {
-  dispatch?: (type: string, payload: any) => void
+export interface ISchemaFieldProps<
+  Decorator extends JSXComponent = any,
+  Component extends JSXComponent = any,
+  InnerField = Formily.Core.Models.ObjectField<Decorator, Component>
+> extends Omit<
+    Formily.Core.Types.IFieldFactoryProps<Decorator, Component, InnerField>,
+    'name'
+  > {
+  schema?: ISchema
+  scope?: any
+  name?: SchemaKey
+  children?: React.ReactNode
 }
 
-type WrapPromise<
-  T extends {
-    [key: string]: (...args: any) => any
-  }
-> = {
-  [key in keyof T]: (...args: Parameters<T[key]>) => Promise<ReturnType<T[key]>>
+export interface ISchemaFieldUpdateRequest {
+  state?: Formily.Core.Types.IFieldState
+  schema?: ISchema
+  run?: string
 }
 
-export type IFormAsyncActions = WrapPromise<IFormActions>
-
-export interface IEffectProviderAPI<TActions = any, TContext = any> {
-  waitFor: <TPayload = any>(
-    type: string,
-    filter: (payload: TPayload) => boolean
-  ) => Promise<TPayload>
-  triggerTo: <TPayload = any>(type: string, payload: TPayload) => void
-  applyMiddlewares: <TPayload = any>(
-    type: string,
-    payload: TPayload
-  ) => Promise<TPayload>
-  actions: TActions
-  context?: TContext
+export interface ISchemaMapper {
+  (schema: Schema, name: SchemaKey): Schema
 }
 
-export interface IEffectMiddlewareAPI<TActions = any, TContext = any> {
-  waitFor: <TPayload = any>(
-    type: string,
-    filter: (payload: TPayload) => boolean
-  ) => Promise<TPayload>
-  actions: TActions
-  context?: TContext
+export interface ISchemaFilter {
+  (schema: Schema, name: SchemaKey): boolean
+}
+export interface IRecursionFieldProps {
+  schema: Schema
+  name?: SchemaKey
+  basePath?: FormPathPattern
+  onlyRenderProperties?: boolean
+  onlyRenderSelf?: boolean
+  mapProperties?: ISchemaMapper
+  filterProperties?: ISchemaFilter
 }
 
-export interface IEffectProviderHandler<TActions = any, TContext = any> {
-  (options: IEffectProviderAPI<TActions, TContext>): (
-    $: (type: string) => Observable<any>,
-    actions: TActions
-  ) => void
+export type ObjectKey = string | number | boolean | symbol
+
+export type Path<T, Key extends keyof T = keyof T> = Key extends string
+  ? T[Key] extends Record<string, any>
+    ?
+        | `${Key}.${Path<T[Key], Exclude<keyof T[Key], keyof Array<any>>> &
+            string}`
+        | `${Key}.${Exclude<keyof T[Key], keyof Array<any>> & string}`
+        | Key
+    : Key
+  : never
+
+export type PathValue<
+  T,
+  P extends Path<T>
+> = P extends `${infer Key}.${infer Rest}`
+  ? Key extends keyof T
+    ? Rest extends Path<T[Key]>
+      ? PathValue<T[Key], Rest>
+      : never
+    : never
+  : P extends keyof T
+  ? T[P]
+  : never
+
+export type KeyOfReactComponent<T> = Exclude<
+  keyof T,
+  'contextTypes' | 'displayName' | 'propTypes' | 'defaultProps'
+>
+
+export type ReactComponentPath<
+  T,
+  Key extends KeyOfReactComponent<T> = KeyOfReactComponent<T>
+> = Key extends string
+  ? T[Key] extends Record<string, any>
+    ?
+        | `${Key}.${Exclude<KeyOfReactComponent<T[Key]>, keyof Array<any>> &
+            string}`
+        | Key
+    : Key
+  : never
+
+export type ReactComponentPropsByPathValue<
+  T extends Record<string, any>,
+  P extends ReactComponentPath<T>
+> = P extends `${infer Key}.${infer Rest}`
+  ? Key extends keyof T
+    ? Rest extends ReactComponentPath<T[Key]>
+      ? ReactComponentPropsByPathValue<T[Key], Rest>
+      : never
+    : never
+  : P extends keyof T
+  ? React.ComponentProps<T[P]>
+  : never
+export interface ISchemaMarkupFieldProps<
+  Components extends SchemaComponents,
+  Decorator extends ReactComponentPath<Components>,
+  Component extends ReactComponentPath<Components>
+> extends ISchema<
+    Decorator,
+    Component,
+    ReactComponentPropsByPathValue<Components, Decorator>,
+    ReactComponentPropsByPathValue<Components, Component>,
+    Formily.Core.Types.FormPatternTypes,
+    Formily.Core.Types.FieldDisplayTypes,
+    Formily.Core.Types.FieldValidator,
+    React.ReactNode,
+    Formily.Core.Types.GeneralField
+  > {
+  children?: React.ReactNode
 }
 
-export interface IEffectMiddleware<TActions = any, TContext = any> {
-  (options: IEffectMiddlewareAPI<TActions, TContext>): {
-    [key: string]: <TPayload = any>(
-      payload: TPayload,
-      next: (payload: any) => Promise<any>
-    ) => Promise<any>
-  }
+export type ISchemaTypeFieldProps<
+  Components extends SchemaComponents,
+  Decorator extends ReactComponentPath<Components>,
+  Component extends ReactComponentPath<Components>
+> = Omit<ISchemaMarkupFieldProps<Components, Decorator, Component>, 'type'>
+
+export interface ISchemaTransformerOptions extends ISchemaFieldFactoryOptions {
+  required?: ISchema['required']
 }

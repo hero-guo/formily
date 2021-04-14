@@ -1,27 +1,20 @@
-import { useContext, useEffect, useMemo } from 'react'
-import { isStateModel } from '@formily/core'
-import FormContext from '../context'
-import { useEva } from 'react-eva'
-import { IFormEffect, IFormActions } from '../types'
-import { createFormEffects } from '../shared'
+import { useEffect, useMemo, useRef } from 'react'
+import { uid } from '@formily/shared'
+import { useForm } from './useForm'
 
-export function useFormEffects(effects: IFormEffect<any, IFormActions>) {
-  const form = useContext(FormContext)
-  const { dispatch } = useEva({
-    effects: createFormEffects(effects, form)
-  })
-  const subscribeId = useMemo(
-    () =>
-      form.subscribe(({ type, payload }) => {
-        dispatch.lazy(type, () => {
-          return isStateModel(payload) ? payload.getState() : payload
-        })
-      }),
-    []
-  )
+export const useFormEffects = (
+  effects?: (form: Formily.Core.Models.Form) => void
+) => {
+  const ref = useRef(null)
+  const form = useForm()
+  ref.current = useMemo(() => {
+    const id = uid()
+    form.addEffects(id, effects)
+    return id
+  }, [])
   useEffect(() => {
     return () => {
-      form.unsubscribe(subscribeId)
+      form.removeEffects(ref.current)
     }
   }, [])
 }

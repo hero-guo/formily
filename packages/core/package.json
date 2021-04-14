@@ -1,13 +1,18 @@
 {
   "name": "@formily/core",
-  "version": "1.3.13",
+  "version": "2.0.0-beta.25",
   "license": "MIT",
   "main": "lib",
+  "module": "esm",
+  "umd:main": "dist/formily.core.umd.production.js",
+  "unpkg": "dist/formily.core.umd.production.js",
+  "jsdelivr": "dist/formily.core.umd.production.js",
+  "jsnext:main": "esm",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/alibaba/formily.git"
   },
-  "types": "lib/index.d.ts",
+  "types": "esm/index.d.ts",
   "bugs": {
     "url": "https://github.com/alibaba/formily/issues"
   },
@@ -16,21 +21,26 @@
     "npm": ">=3.0.0"
   },
   "scripts": {
-    "build": "rimraf -rf lib && tsc --declaration"
-  },
-  "devDependencies": {
-    "typescript": "~3.8.0"
+    "start": "dumi dev",
+    "build": "rimraf -rf lib esm dist && npm run build:cjs && npm run build:esm && npm run build:umd",
+    "build:cjs": "tsc --declaration",
+    "build:esm": "tsc --declaration --module es2015 --outDir esm",
+    "build:umd": "rollup --config",
+    "build:docs": "dumi build"
   },
   "peerDependencies": {
-    "scheduler": ">=0.11.2"
+    "@types/react": ">=16.8.0 || >=17.0.0"
+  },
+  "devDependencies": {
+    "dumi": "^1.1.0-rc.8"
   },
   "dependencies": {
-    "@formily/shared": "^1.3.13",
-    "@formily/validator": "^1.3.13",
-    "immer": "^8.0.1"
+    "@formily/reactive": "^2.0.0-beta.25",
+    "@formily/shared": "^2.0.0-beta.25",
+    "@formily/validator": "^2.0.0-beta.25"
   },
   "publishConfig": {
     "access": "public"
   },
-  "gitHead": "67e5a3154ac3077039501c80e0f206b0e64344b6"
+  "gitHead": "2c44ae410a73f02735c63c6430e021a50e21f3ec"
 }

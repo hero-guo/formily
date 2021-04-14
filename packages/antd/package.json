@@ -1,9 +1,13 @@
 {
   "name": "@formily/antd",
-  "version": "1.3.13",
+  "version": "2.0.0-beta.25",
   "license": "MIT",
   "main": "lib",
   "module": "esm",
+  "umd:main": "dist/formily.antd.umd.production.js",
+  "unpkg": "dist/formily.antd.umd.production.js",
+  "jsdelivr": "dist/formily.antd.umd.production.js",
+  "jsnext:main": "esm",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/alibaba/formily.git"
@@ -17,25 +21,40 @@
     "npm": ">=3.0.0"
   },
   "scripts": {
-    "build": "ts-node --project ../../tsconfig.build.json build.ts"
+    "start": "dumi dev",
+    "build": "rimraf -rf lib esm dist && npm run build:cjs && npm run build:esm && npm run build:umd && npm run build:style",
+    "build:style": "ts-node build-style",
+    "build:cjs": "tsc --declaration",
+    "build:esm": "tsc --declaration --module es2015 --outDir esm",
+    "build:umd": "rollup --config",
+    "build:docs": "dumi build"
+  },
+  "devDependencies": {
+    "@umijs/plugin-sass": "^1.1.1",
+    "dumi": "^1.1.0-rc.8"
   },
   "peerDependencies": {
-    "antd": "^3.14.1 || ^4.0.0",
-    "react": ">=16.8.0",
-    "react-dom": ">=16.8.0",
-    "styled-components": "^4.1.1"
+    "@types/react": ">=16.8.0 || >=17.0.0",
+    "@types/react-dom": ">=16.8.0 || >=17.0.0",
+    "antd": "^4.0.0",
+    "react": ">=16.8.0 || >=17.0.0",
+    "react-dom": ">=16.8.0"
   },
   "dependencies": {
-    "@formily/react-schema-renderer": "^1.3.13",
-    "@formily/react-shared-components": "^1.3.13",
-    "@formily/shared": "^1.3.13",
+    "@ant-design/icons": "^4.0.0",
+    "@formily/core": "^2.0.0-beta.25",
+    "@formily/json-schema": "^2.0.0-beta.25",
+    "@formily/react": "^2.0.0-beta.25",
+    "@formily/reactive": "^2.0.0-beta.25",
+    "@formily/reactive-react": "^2.0.0-beta.25",
+    "@formily/shared": "^2.0.0-beta.25",
     "classnames": "^2.2.6",
-    "react-eva": "^1.0.0-alpha.0",
-    "react-stikky": "^0.1.15",
-    "rxjs": "^6.5.1"
+    "react-sortable-hoc": "^1.11.0",
+    "react-sticky-box": "^0.9.3",
+    "resize-observer-polyfill": "^1.5.1"
   },
   "publishConfig": {
     "access": "public"
   },
-  "gitHead": "67e5a3154ac3077039501c80e0f206b0e64344b6"
+  "gitHead": "2c44ae410a73f02735c63c6430e021a50e21f3ec"
 }

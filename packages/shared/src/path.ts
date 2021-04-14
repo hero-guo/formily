@@ -1,3 +1,3 @@
-import FormPath, { Pattern as FormPathPattern } from 'cool-path'
+import { Path as FormPath, Pattern as FormPathPattern } from '@formily/path'
 
 export { FormPath, FormPathPattern }

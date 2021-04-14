@@ -1,36 +1,23 @@
 import React from 'react'
-import { useField } from '../hooks/useField'
-import { isFn } from '@formily/shared'
-import { IFieldStateUIProps } from '../types'
-import { FieldContext } from '../context'
+import { useField, useForm } from '../hooks'
+import { useAttach } from '../hooks/useAttach'
+import { ReactiveField } from './ReactiveField'
+import { FieldContext } from '../shared'
+import { JSXComponent, IFieldProps } from '../types'
 
-export const Field: React.FC<IFieldStateUIProps> = props => {
-  const { state, field, props: innerProps, mutators, form } = useField(props)
-
-  if (!state.visible || !state.display) return <React.Fragment />
-  if (isFn(props.children)) {
-    return (
-      <FieldContext.Provider value={field}>
-        {props.children({
-          form,
-          state,
-          props: innerProps,
-          mutators
-        })}
-      </FieldContext.Provider>
-    )
-  } else {
-    return (
-      <FieldContext.Provider value={field}>
-        {props.children}
-      </FieldContext.Provider>
-    )
-  }
+export const Field = <D extends JSXComponent, C extends JSXComponent>(
+  props: IFieldProps<D, C>
+) => {
+  const form = useForm()
+  const parent = useField()
+  const field = useAttach(
+    form.createField({ basePath: parent?.address, ...props })
+  )
+  return (
+    <FieldContext.Provider value={field}>
+      <ReactiveField field={field}>{props.children}</ReactiveField>
+    </FieldContext.Provider>
+  )
 }
 
-Field.displayName = 'ReactInternalField'
-
-Field.defaultProps = {
-  path: '',
-  triggerType: 'onChange'
-}
+Field.displayName = 'Field'

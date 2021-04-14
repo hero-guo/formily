@@ -1,12 +1,13 @@
-import React, { useMemo } from 'react'
-import { BroadcastContext } from '../context'
-import { Broadcast } from '../shared'
+import React from 'react'
+import { useAttach } from '../hooks/useAttach'
+import { FormContext } from '../shared'
+import { IProviderProps } from '../types'
 
-const { Provider } = BroadcastContext
-
-export const FormProvider: React.FunctionComponent = props => {
-  const broadcast = useMemo<Broadcast>(() => {
-    return new Broadcast()
-  }, [])
-  return <Provider value={broadcast}>{props.children}</Provider>
+export const FormProvider: React.FC<IProviderProps> = props => {
+  const form = useAttach(props.form)
+  return (
+    <FormContext.Provider value={form}>{props.children}</FormContext.Provider>
+  )
 }
+
+FormProvider.displayName = 'FormProvider'

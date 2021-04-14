@@ -1,3 +1,4 @@
+/* istanbul ignore next */ 
 function globalSelf() {
   try {
     if (typeof self !== 'undefined') {
@@ -16,4 +17,4 @@ function globalSelf() {
   } catch (e) {}
   return Function('return this')()
 }
-export const globalThisPolyfill = globalSelf()
+export const globalThisPolyfill: Window = globalSelf()

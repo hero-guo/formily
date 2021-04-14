@@ -1,21 +1,10 @@
-sudo: required
-
 language: node_js
 
-before_install:
-  - npm i -g npm@6
-
 node_js:
-  - "8"
-  - "11"
-
-before_script:
-  - rm -rf node_modules
-  - npm install
-  - lerna clean --yes
-  - lerna bootstrap --no-ci
-
+  - "10"
+  - "12"
 script:
-  - npm run lint
-  - npm run build
-  - npm run test:prod
+  - yarn build
+  - yarn test:prod
+
+after_success: bash <(curl -s https://codecov.io/bash)

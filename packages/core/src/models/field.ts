@@ -1,490 +1,783 @@
-import { createModel } from '../shared/model'
-import {
-  IModelSpec,
-  IFieldState,
-  IFieldStateProps,
-  FieldStateDirtyMap
-} from '../types'
 import {
   FormPath,
-  isFn,
-  toArr,
   isValid,
-  isEqual,
-  isEmpty,
   isArr,
-  isPlainObj
+  FormPathPattern,
+  isBool,
+  each,
+  isFn,
+  isEmpty,
+  toArr,
 } from '@formily/shared'
-import { Draft } from 'immer'
+import {
+  ValidatorTriggerType,
+  parseValidatorDescriptions,
+} from '@formily/validator'
+import {
+  define,
+  observable,
+  reaction,
+  batch,
+  toJS,
+  autorun,
+} from '@formily/reactive'
+import { Form } from './Form'
+import {
+  JSXComponent,
+  JSXComponenntProps,
+  LifeCycleTypes,
+  IFieldFeedback,
+  FeedbackMessage,
+  IFieldCaches,
+  IFieldRequests,
+  FieldDisplayTypes,
+  FieldPatternTypes,
+  FieldValidator,
+  FieldDecorator,
+  FieldComponent,
+  FieldDataSource,
+  ISearchFeedback,
+  IFieldProps,
+  IFieldResetOptions,
+  IFieldState,
+  IModelSetter,
+  IModelGetter,
+} from '../types'
+import {
+  buildNodeIndexes,
+  validateToFeedbacks,
+  initFieldUpdate,
+  updateFeedback,
+  queryFeedbacks,
+  queryFeedbackMessages,
+  getValuesFromEvent,
+  modelStateSetter,
+  modelStateGetter,
+  isHTMLInputEvent,
+  initFieldValue,
+} from '../shared'
+import { Query } from './Query'
 
-const normalizeMessages = (messages: any) => toArr(messages).filter(v => !!v)
+export class Field<
+  Decorator extends JSXComponent = any,
+  Component extends JSXComponent = any,
+  TextType = any,
+  ValueType = any
+> {
+  displayName = 'Field'
+  title: TextType
+  description: TextType
+  selfDisplay: FieldDisplayTypes
+  selfPattern: FieldPatternTypes
+  loading: boolean
+  validating: boolean
+  modified: boolean
+  active: boolean
+  visited: boolean
+  inputValue: ValueType
+  inputValues: any[]
+  initialized: boolean
+  dataSource: FieldDataSource
+  mounted: boolean
+  unmounted: boolean
+  validator: FieldValidator
+  decoratorType: Decorator
+  decoratorProps: Record<string, any>
+  componentType: Component
+  componentProps: Record<string, any>
+  feedbacks: IFieldFeedback[]
+  address: FormPath
+  path: FormPath
 
-const calculateEditable = (
-  selfEditable: boolean,
-  formEditable: boolean | ((name: string) => boolean),
-  name: string
-) => {
-  return isValid(selfEditable)
-    ? selfEditable
-    : isValid(formEditable)
-    ? isFn(formEditable)
-      ? formEditable(name)
-      : formEditable
-    : true
-}
+  form: Form
+  props: IFieldProps<Decorator, Component, TextType, ValueType>
 
-export const ARRAY_UNIQUE_TAG = Symbol.for(
-  '@@__YOU_CAN_NEVER_REMOVE_ARRAY_UNIQUE_TAG__@@'
-)
+  private caches: IFieldCaches = {}
+  private requests: IFieldRequests = {}
+  private disposers: (() => void)[] = []
 
-export const parseArrayTags = (value: any[]) => {
-  if (!isArr(value)) return []
-  return value?.reduce?.((buf, item: any) => {
-    return item?.[ARRAY_UNIQUE_TAG] ? buf.concat(item[ARRAY_UNIQUE_TAG]) : buf
-  }, [])
-}
+  constructor(
+    address: FormPathPattern,
+    props: IFieldProps<Decorator, Component, TextType, ValueType>,
+    form: Form
+  ) {
+    this.initialize(props, form)
+    this.makeIndexes(address)
+    this.makeObservable()
+    this.makeReactive()
+    this.onInit()
+  }
 
-export const tagArrayList = (current: any[], name: string, force?: boolean) => {
-  return current?.map?.((item, index) => {
-    if (isPlainObj(item)) {
-      item[ARRAY_UNIQUE_TAG] = force
-        ? `${name}.${index}`
-        : item[ARRAY_UNIQUE_TAG] || `${name}.${index}`
-    }
-    return item
-  })
-}
+  protected makeIndexes(address: FormPathPattern) {
+    buildNodeIndexes(this, address)
+  }
 
-export const Field = createModel<IFieldState, IFieldStateProps>(
-  class FieldStateFactory implements IModelSpec<IFieldState, IFieldStateProps> {
-    nodePath: FormPath
+  protected initialize(
+    props: IFieldProps<Decorator, Component, TextType, ValueType>,
+    form: Form
+  ) {
+    this.form = form
+    this.props = props
+    this.initialized = false
+    this.loading = false
+    this.validating = false
+    this.modified = false
+    this.active = false
+    this.visited = false
+    this.mounted = false
+    this.unmounted = false
+    this.inputValues = []
+    this.inputValue = null
+    this.feedbacks = []
+    this.title = props.title
+    this.description = props.description
+    this.display = this.props.display
+    this.pattern = this.props.pattern
+    this.editable = this.props.editable
+    this.disabled = this.props.disabled
+    this.readOnly = this.props.readOnly
+    this.readPretty = this.props.readPretty
+    this.visible = this.props.visible
+    this.hidden = this.props.hidden
+    this.dataSource = this.props.dataSource
+    this.validator = this.props.validator
+    this.required = this.props.required
+    this.decorator = toArr(this.props.decorator)
+    this.component = toArr(this.props.component)
+  }
 
-    dataPath: FormPath
+  protected makeObservable() {
+    define(this, {
+      title: observable.ref,
+      description: observable.ref,
+      dataSource: observable.ref,
+      selfDisplay: observable.ref,
+      selfPattern: observable.ref,
+      loading: observable.ref,
+      validating: observable.ref,
+      modified: observable.ref,
+      active: observable.ref,
+      visited: observable.ref,
+      initialized: observable.ref,
+      mounted: observable.ref,
+      unmounted: observable.ref,
+      inputValue: observable.ref,
+      inputValues: observable.ref,
+      decoratorType: observable.ref,
+      componentType: observable.ref,
+      decoratorProps: observable,
+      componentProps: observable,
+      validator: observable,
+      feedbacks: observable,
+      component: observable.computed,
+      decorator: observable.computed,
+      errors: observable.computed,
+      warnings: observable.computed,
+      successes: observable.computed,
+      valid: observable.computed,
+      invalid: observable.computed,
+      validateStatus: observable.computed,
+      value: observable.computed,
+      initialValue: observable.computed,
+      display: observable.computed,
+      pattern: observable.computed,
+      required: observable.computed,
+      hidden: observable.computed,
+      visible: observable.computed,
+      disabled: observable.computed,
+      readOnly: observable.computed,
+      readPretty: observable.computed,
+      editable: observable.computed,
+      setDisplay: batch,
+      setTitle: batch,
+      setDescription: batch,
+      setDataSource: batch,
+      setValue: batch,
+      setPattern: batch,
+      setInitialValue: batch,
+      setLoading: batch,
+      setValidating: batch,
+      setFeedback: batch,
+      setErrors: batch,
+      setWarnings: batch,
+      setSuccesses: batch,
+      setValidator: batch,
+      setRequired: batch,
+      setComponent: batch,
+      setComponentProps: batch,
+      setDecorator: batch,
+      setDecoratorProps: batch,
+      setState: batch,
+      onInput: batch,
+      onMount: batch,
+      onUnmount: batch,
+      onFocus: batch,
+      onBlur: batch,
+      reset: batch,
+    })
+  }
 
-    props: IFieldStateProps
-
-    prevState: IFieldState
-
-    updates: Array<'value' | 'initialValue'>
-
-    lastCompareResults?: boolean
-
-    state = {
-      name: '',
-      path: '',
-      dataType: 'any',
-      initialized: false,
-      pristine: true,
-      valid: true,
-      modified: false,
-      inputed: false,
-      touched: false,
-      active: false,
-      visited: false,
-      invalid: false,
-      visible: true,
-      display: true,
-      loading: false,
-      validating: false,
-      errors: [],
-      values: [],
-      ruleErrors: [],
-      ruleWarnings: [],
-      effectErrors: [],
-      warnings: [],
-      effectWarnings: [],
-      editable: true,
-      selfEditable: undefined,
-      formEditable: undefined,
-      value: undefined,
-      visibleCacheValue: undefined,
-      initialValue: undefined,
-      rules: [],
-      required: false,
-      mounted: false,
-      unmounted: false,
-      props: {}
-    }
-
-    constructor(props: IFieldStateProps = {}) {
-      this.nodePath = FormPath.getPath(props.nodePath)
-      this.dataPath = FormPath.getPath(props.dataPath)
-      this.state.name = this.dataPath.entire
-      this.state.path = this.nodePath.entire
-      this.state.dataType = props.dataType
-      this.props = props
-      this.updates = []
-    }
-
-    dirtyCheck(path: string[], currentValue: any, nextValue: any) {
-      if (path[0] === 'value') {
-        if (this.isArrayList()) {
-          //如果是ArrayList，不再做精准判断，因为数组内部侵入了Symbol，使用isEqual判断会有问题
-          return true
+  protected makeReactive() {
+    this.disposers.push(
+      reaction(
+        () => this.value,
+        () => {
+          this.form.notify(LifeCycleTypes.ON_FIELD_VALUE_CHANGE, this)
         }
-      }
-      return !isEqual(currentValue, nextValue)
-    }
-
-    getValueFromProps() {
-      if (isFn(this.props?.getValue)) {
-        return this.props.getValue(this.state.name)
-      }
-      return this.state.value
-    }
-
-    getEditableFromProps() {
-      return this.props?.getEditable?.()
-    }
-
-    getInitialValueFromProps() {
-      if (isFn(this.props?.getInitialValue)) {
-        const initialValue = this.props.getInitialValue(this.state.name)
-        return isValid(this.state.initialValue)
-          ? this.state.initialValue
-          : initialValue
-      }
-      return this.state.initialValue
-    }
-
-    getState = () => {
-      if (!this.state.initialized) return this.state
-      let value = this.getValueFromProps()
-      let initialValue = this.getInitialValueFromProps()
-      let formEditable = this.getEditableFromProps()
-      if (this.isArrayList()) {
-        value = this.fixArrayListTags(toArr(value))
-        initialValue = this.fixArrayListTags(toArr(initialValue))
-      }
-      const valueChanged = !isEqual(this.state.value, value)
-
-      const state = {
-        ...this.state,
-        initialValue,
-        formEditable,
-        editable: calculateEditable(
-          this.state.selfEditable,
-          formEditable,
-          this.state.name
-        ),
-        modified: this.state.modified || valueChanged,
-        value,
-        values: [value].concat(this.state.values.slice(1))
-      }
-      if (valueChanged && valueChanged !== this.lastCompareResults) {
-        this.state.value = value
-        this.props?.unControlledValueChanged?.()
-      }
-      this.lastCompareResults = valueChanged
-      return state
-    }
-
-    produceErrorsAndWarnings(
-      draft: Draft<IFieldState>,
-      dirtys: FieldStateDirtyMap
-    ) {
-      if (dirtys.errors) {
-        draft.effectErrors = normalizeMessages(draft.errors)
-      }
-      if (dirtys.warnings) {
-        draft.effectWarnings = normalizeMessages(draft.warnings)
-      }
-      if (dirtys.effectErrors) {
-        draft.effectErrors = normalizeMessages(draft.effectErrors)
-      }
-      if (dirtys.effectWarnings) {
-        draft.effectWarnings = normalizeMessages(draft.effectWarnings)
-      }
-      if (dirtys.ruleErrors) {
-        draft.ruleErrors = normalizeMessages(draft.ruleErrors)
-      }
-      if (dirtys.ruleWarnings) {
-        draft.ruleWarnings = normalizeMessages(draft.ruleWarnings)
-      }
-      draft.errors = draft.ruleErrors.concat(draft.effectErrors)
-      draft.warnings = draft.ruleWarnings.concat(draft.effectWarnings)
-    }
-
-    produceEditable(draft: Draft<IFieldState>, dirtys: FieldStateDirtyMap) {
-      if (dirtys.editable) {
-        draft.selfEditable = draft.editable
-      }
-      draft.editable = calculateEditable(
-        draft.selfEditable,
-        draft.formEditable,
-        draft.name
+      ),
+      reaction(
+        () => this.initialValue,
+        () => {
+          this.form.notify(LifeCycleTypes.ON_FIELD_INITIAL_VALUE_CHANGE, this)
+        }
+      ),
+      reaction(
+        () => this.display,
+        (display) => {
+          if (display === 'none') {
+            this.caches.value = toJS(this.value)
+            this.setValue()
+          } else if (display === 'visible') {
+            if (isEmpty(this.value)) {
+              this.setValue(this.caches.value)
+              this.caches.value = undefined
+            }
+          }
+          if (display === 'none' || display === 'hidden') {
+            this.setFeedback({
+              type: 'error',
+              messages: [],
+            })
+          }
+        }
+      ),
+      reaction(
+        () => this.pattern,
+        (pattern) => {
+          if (pattern !== 'editable') {
+            this.setFeedback({
+              type: 'error',
+              messages: [],
+            })
+          }
+        }
       )
-    }
-
-    supportUnmountClearStates() {
-      if (isFn(this.props?.supportUnmountClearStates)) {
-        return this.props?.supportUnmountClearStates(this.state.path)
-      }
-      return true
-    }
-
-    produceSideEffects(draft: Draft<IFieldState>, dirtys: FieldStateDirtyMap) {
-      const supportClearStates = this.supportUnmountClearStates()
-      if (dirtys.validating) {
-        if (draft.validating === true) {
-          draft.loading = true
-        } else if (draft.validating === false) {
-          draft.loading = false
-        }
-      }
-      if (
-        draft.editable === false ||
-        draft.selfEditable === false ||
-        draft.visible === false ||
-        draft.display === false ||
-        (draft.unmounted === true && supportClearStates)
-      ) {
-        draft.errors = []
-        draft.effectErrors = []
-        draft.warnings = []
-        draft.effectWarnings = []
-      }
-      if (!isValid(draft.props)) {
-        draft.props = {}
-      }
-      if (draft.mounted === true && dirtys.mounted) {
-        draft.unmounted = false
-      }
-      if (draft.mounted === false && dirtys.mounted) {
-        draft.unmounted = true
-      }
-      if (draft.unmounted === true && dirtys.unmounted) {
-        draft.mounted = false
-      }
-      if (draft.unmounted === false && dirtys.unmounted) {
-        draft.mounted = true
-      }
-      if (dirtys.visible || dirtys.mounted || dirtys.unmounted) {
-        if (supportClearStates) {
-          if (draft.display) {
-            if (draft.visible === false || draft.unmounted === true) {
-              if (!dirtys.visibleCacheValue) {
-                draft.visibleCacheValue = isValid(draft.value)
-                  ? draft.value
-                  : isValid(draft.visibleCacheValue)
-                  ? draft.visibleCacheValue
-                  : draft.initialValue
-              }
-              draft.value = undefined
-              draft.values = toArr(draft.values)
-              draft.values[0] = undefined
-              this.updates.push('value')
-            } else if (
-              draft.visible === true ||
-              draft.mounted === true ||
-              draft.unmounted === false
-            ) {
-              if (!isValid(draft.value)) {
-                draft.value = draft.visibleCacheValue
-                this.updates.push('value')
-              }
-            }
-          }
-        } else {
-          if (draft.display) {
-            if (draft.visible === false) {
-              if (!dirtys.visibleCacheValue) {
-                draft.visibleCacheValue = isValid(draft.value)
-                  ? draft.value
-                  : isValid(draft.visibleCacheValue)
-                  ? draft.visibleCacheValue
-                  : draft.initialValue
-              }
-              draft.value = undefined
-              draft.values = toArr(draft.values)
-              draft.values[0] = undefined
-            } else if (draft.visible === true) {
-              if (!isValid(draft.value)) {
-                draft.value = draft.visibleCacheValue
-              }
-            }
-          }
-        }
-      }
-
-      if (draft.errors.length) {
-        draft.invalid = true
-        draft.valid = false
-      } else {
-        draft.invalid = false
-        draft.valid = true
-      }
-    }
-
-    fixArrayListTags(value: any[]) {
-      if (value?.[0]?.[ARRAY_UNIQUE_TAG]) {
-        return value
-      } else {
-        return this.tagArrayList(value)
-      }
-    }
-
-    tagArrayList(value: any[]) {
-      return tagArrayList(value, this.state.name)
-    }
-
-    isArrayList() {
-      return /array/gi.test(this.state.dataType)
-    }
-
-    produceValue(draft: Draft<IFieldState>, dirtys: FieldStateDirtyMap) {
-      let valueOrInitialValueChanged =
-        dirtys.values || dirtys.value || dirtys.initialValue
-      let valueChanged = dirtys.values || dirtys.value
-      if (dirtys.values) {
-        draft.values = toArr(draft.values)
-        if (this.isArrayList()) {
-          draft.values[0] = this.tagArrayList(toArr(draft.values[0]))
-        }
-        draft.value = draft.values[0]
-        draft.modified = true
-      }
-      if (dirtys.value) {
-        if (this.isArrayList()) {
-          draft.value = this.tagArrayList(toArr(draft.value))
-        }
-        draft.values[0] = draft.value
-        draft.modified = true
-      }
-      if (dirtys.initialized) {
-        const isEmptyValue = !isValid(draft.value) || isEmpty(draft.value)
-        if (isEmptyValue && isValid(draft.initialValue)) {
-          draft.value = draft.initialValue
-          draft.values = toArr(draft.values)
-          draft.values[0] = draft.value
-          valueChanged = true
-          valueOrInitialValueChanged = true
-        }
-      }
-      if (valueChanged) {
-        this.updates.push('value')
-      }
-      if (dirtys.initialValue) {
-        this.updates.push('initialValue')
-      }
-      if (valueOrInitialValueChanged) {
-        if (isEqual(draft.initialValue, draft.value)) {
-          draft.pristine = true
-        } else {
-          draft.pristine = false
-        }
-      }
-    }
-
-    getRulesFromRulesAndRequired(
-      rules: IFieldState['rules'],
-      required: boolean
-    ) {
-      if (isValid(required)) {
-        if (rules.length) {
-          if (!rules.some(rule => rule && isValid(rule!['required']))) {
-            return rules.concat([{ required }])
-          } else {
-            return rules.reduce((buf: any[], item: any) => {
-              const keys = Object.keys(item || {})
-              if (isValid(item.required)) {
-                if (isValid(item.message)) {
-                  if (keys.length > 2) {
-                    return buf.concat({
-                      ...item,
-                      required
-                    })
-                  }
-                } else {
-                  if (keys.length > 1) {
-                    return buf.concat({
-                      ...item,
-                      required
-                    })
-                  }
-                }
-              }
-              if (isValid(item.required)) {
-                return buf.concat({
-                  ...item,
-                  required
-                })
-              }
-              return buf.concat(item)
-            }, [])
-          }
-        } else {
-          if (required === true) {
-            return rules.concat([
-              {
-                required
-              }
-            ])
-          }
-        }
-      }
-      return rules
-    }
-
-    getRequiredFromRulesAndRequired(rules: any[], required: boolean) {
-      for (let i = 0; i < rules.length; i++) {
-        if (isValid(rules[i].required)) {
-          return rules[i].required
-        }
-      }
-      return required
-    }
-
-    produceRules(draft: Draft<IFieldState>, dirtys: FieldStateDirtyMap) {
-      if (isValid(draft.rules)) {
-        draft.rules = toArr(draft.rules)
-      }
-      if ((dirtys.required && dirtys.rules) || dirtys.required) {
-        const rules = this.getRulesFromRulesAndRequired(
-          draft.rules,
-          draft.required
-        )
-        draft.required = draft.required
-        draft.rules = rules
-      } else if (dirtys.rules) {
-        draft.required = this.getRequiredFromRulesAndRequired(
-          draft.rules,
-          draft.required
-        )
-      }
-    }
-
-    beforeProduce() {
-      this.updates = []
-    }
-
-    produce(draft: Draft<IFieldState>, dirtys: FieldStateDirtyMap) {
-      this.produceErrorsAndWarnings(draft, dirtys)
-      this.produceEditable(draft, dirtys)
-      this.produceValue(draft, dirtys)
-      this.produceSideEffects(draft, dirtys)
-      this.produceRules(draft, dirtys)
-    }
-
-    afterProduce() {
-      //Because the draft data cannot be consumed externally, I can only cache the changes and handle it uniformly
-      this.updates.forEach(type => {
-        if (type === 'value') {
-          this.props?.setValue?.(this.state.name, this.state.value)
-        } else {
-          this.props?.setInitialValue?.(
-            this.state.name,
-            this.state.initialValue
-          )
+    )
+    const reactions = toArr(this.props.reactions)
+    this.form.addEffects(this, () => {
+      reactions.forEach((reaction) => {
+        if (isFn(reaction)) {
+          this.disposers.push(autorun(() => reaction(this)))
         }
       })
-    }
-
-    static defaultProps = {
-      path: '',
-      dataType: 'any'
-    }
-
-    static displayName = 'FieldState'
+    })
   }
-)
+
+  get parent() {
+    let parent = this.address.parent()
+    let identifier = parent.toString()
+    if (!identifier) return
+    while (!this.form.fields[identifier]) {
+      parent = parent.parent()
+      identifier = parent.toString()
+      if (!identifier) return
+    }
+    return this.form.fields[identifier]
+  }
+
+  get component() {
+    return [this.componentType, this.componentProps]
+  }
+
+  set component(value: FieldComponent<Component>) {
+    const component = toArr(value)
+    this.componentType = component[0]
+    this.componentProps = component[1] || {}
+  }
+
+  get decorator() {
+    return [this.decoratorType, this.decoratorProps]
+  }
+
+  set decorator(value: FieldDecorator<Decorator>) {
+    const decorator = toArr(value)
+    this.decoratorType = decorator[0]
+    this.decoratorProps = decorator[1] || {}
+  }
+
+  get errors() {
+    return queryFeedbackMessages(this, {
+      type: 'error',
+    })
+  }
+
+  get warnings() {
+    return queryFeedbackMessages(this, {
+      type: 'warning',
+    })
+  }
+
+  get successes() {
+    return queryFeedbackMessages(this, {
+      type: 'success',
+    })
+  }
+
+  get valid() {
+    return !this.errors.length
+  }
+
+  get invalid() {
+    return !this.valid
+  }
+
+  get value(): ValueType {
+    return this.form.getValuesIn(this.path)
+  }
+
+  get initialValue(): ValueType {
+    return this.form.getInitialValuesIn(this.path)
+  }
+
+  get display(): FieldDisplayTypes {
+    const parentDisplay = this.parent?.display
+    if (isValid(this.selfDisplay)) return this.selfDisplay
+    return parentDisplay || this.form.display || 'visible'
+  }
+
+  get pattern(): FieldPatternTypes {
+    const parentPattern = this.parent?.pattern
+    if (isValid(this.selfPattern)) return this.selfPattern
+    return parentPattern || this.form.pattern || 'editable'
+  }
+
+  get required() {
+    return parseValidatorDescriptions(this.validator).some(
+      (desc) => desc.required
+    )
+  }
+
+  get hidden() {
+    return this.display === 'hidden'
+  }
+
+  get visible() {
+    return this.display === 'visible'
+  }
+
+  set hidden(hidden: boolean) {
+    if (!isValid(hidden)) return
+    if (hidden) {
+      this.display = 'hidden'
+    } else {
+      this.display = 'visible'
+    }
+  }
+
+  set visible(visible: boolean) {
+    if (!isValid(visible)) return
+    if (visible) {
+      this.display = 'visible'
+    } else {
+      this.display = 'none'
+    }
+  }
+
+  get disabled() {
+    return this.pattern === 'disabled'
+  }
+
+  get readOnly() {
+    return this.pattern === 'readOnly'
+  }
+
+  get readPretty() {
+    return this.pattern === 'readPretty'
+  }
+
+  get editable() {
+    return this.pattern === 'editable'
+  }
+
+  get validateStatus() {
+    if (this.validating) return 'validating'
+    if (this.invalid) return 'error'
+    if (this.warnings.length) return 'warning'
+    if (this.successes.length) return 'success'
+  }
+
+  set readOnly(readOnly: boolean) {
+    if (!isValid(readOnly)) return
+    if (readOnly) {
+      this.pattern = 'readOnly'
+    } else {
+      this.pattern = 'editable'
+    }
+  }
+
+  set editable(editable: boolean) {
+    if (!isValid(editable)) return
+    if (editable) {
+      this.pattern = 'editable'
+    } else {
+      this.pattern = 'readPretty'
+    }
+  }
+
+  set disabled(disabled: boolean) {
+    if (!isValid(disabled)) return
+    if (disabled) {
+      this.pattern = 'disabled'
+    } else {
+      this.pattern = 'editable'
+    }
+  }
+
+  set readPretty(readPretty: boolean) {
+    if (!isValid(readPretty)) return
+    if (readPretty) {
+      this.pattern = 'readPretty'
+    } else {
+      this.pattern = 'editable'
+    }
+  }
+
+  set pattern(pattern: FieldPatternTypes) {
+    this.selfPattern = pattern
+  }
+
+  set display(display: FieldDisplayTypes) {
+    this.selfDisplay = display
+  }
+
+  set required(required: boolean) {
+    if (!isBool(required)) return
+    const hasRequired = parseValidatorDescriptions(this.validator).some(
+      (desc) => 'required' in desc
+    )
+    if (hasRequired) {
+      if (isArr(this.validator)) {
+        this.validator = this.validator.map((desc: any) => {
+          if (Object.prototype.hasOwnProperty.call(desc, 'required')) {
+            desc.required = required
+            return desc
+          }
+          return desc
+        })
+      } else {
+        this.validator['required'] = required
+      }
+    } else {
+      if (isArr(this.validator)) {
+        this.validator.unshift({
+          required,
+        })
+      } else if (typeof this.validator === 'object') {
+        this.validator['required'] = required
+      } else if (this.validator) {
+        this.validator = [
+          {
+            required,
+          },
+          this.validator,
+        ]
+      } else if (required) {
+        this.validator = [
+          {
+            required,
+          },
+        ]
+      }
+    }
+  }
+
+  set value(value: ValueType) {
+    this.form.setValuesIn(this.path, value)
+  }
+
+  set initialValue(initialValue: ValueType) {
+    this.form.setInitialValuesIn(this.path, initialValue)
+  }
+
+  set errors(messages: FeedbackMessage) {
+    this.setFeedback({
+      type: 'error',
+      code: 'EffectError',
+      messages,
+    })
+  }
+
+  set warnings(messages: FeedbackMessage) {
+    this.setFeedback({
+      type: 'warning',
+      code: 'EffectWarning',
+      messages,
+    })
+  }
+
+  set successes(messages: FeedbackMessage) {
+    this.setFeedback({
+      type: 'success',
+      code: 'EffectSuccess',
+      messages,
+    })
+  }
+
+  setTitle = (title?: TextType) => {
+    this.title = title
+  }
+
+  setDescription = (description?: TextType) => {
+    this.description = description
+  }
+
+  setDataSource = (dataSource?: FieldDataSource) => {
+    this.dataSource = dataSource
+  }
+
+  setFeedback = (feedback?: IFieldFeedback) => {
+    updateFeedback(this, feedback)
+  }
+
+  setErrors = (messages?: FeedbackMessage) => {
+    this.errors = messages
+  }
+
+  setWarnings = (messages?: FeedbackMessage) => {
+    this.warnings = messages
+  }
+
+  setSuccesses = (messages?: FeedbackMessage) => {
+    this.successes = messages
+  }
+
+  setValidator = (validator?: FieldValidator) => {
+    this.validator = validator
+  }
+
+  setRequired = (required?: boolean) => {
+    this.required = required
+  }
+
+  setValue = (value?: ValueType) => {
+    this.value = value
+  }
+
+  setInitialValue = (initialValue?: ValueType) => {
+    this.initialValue = initialValue
+  }
+
+  setDisplay = (type?: FieldDisplayTypes) => {
+    this.display = type
+  }
+
+  setPattern = (type?: FieldPatternTypes) => {
+    this.pattern = type
+  }
+
+  setLoading = (loading?: boolean) => {
+    clearTimeout(this.requests.loader)
+    if (loading) {
+      this.requests.loader = setTimeout(() => {
+        batch(() => {
+          this.loading = loading
+        })
+      }, 100)
+    } else if (this.loading !== loading) {
+      this.loading = loading
+    }
+  }
+
+  setValidating = (validating?: boolean) => {
+    clearTimeout(this.requests.validate)
+    if (validating) {
+      this.requests.validate = setTimeout(() => {
+        batch(() => {
+          this.validating = validating
+        })
+      }, 100)
+    } else if (this.validating !== validating) {
+      this.validating = validating
+    }
+  }
+
+  setComponent = <C extends JSXComponent>(
+    component?: C,
+    props?: JSXComponenntProps<C>
+  ) => {
+    if (component) {
+      this.componentType = component as any
+    }
+    if (props) {
+      this.componentProps = this.componentProps || {}
+      Object.assign(this.componentProps, props)
+    }
+  }
+
+  setComponentProps = <C extends JSXComponent = Component>(
+    props?: JSXComponenntProps<C>
+  ) => {
+    if (props) {
+      this.componentProps = this.componentProps || {}
+      Object.assign(this.componentProps, props)
+    }
+  }
+
+  setDecorator = <D extends JSXComponent>(
+    component?: D,
+    props?: JSXComponenntProps<D>
+  ) => {
+    if (component) {
+      this.decoratorType = component as any
+    }
+    if (props) {
+      this.decoratorProps = this.decoratorProps || {}
+      Object.assign(this.decoratorProps, props)
+    }
+  }
+
+  setDecoratorProps = <D extends JSXComponent = Decorator>(
+    props?: JSXComponenntProps<D>
+  ) => {
+    if (props) {
+      this.decoratorProps = this.decoratorProps || {}
+      Object.assign(this.decoratorProps, props)
+    }
+  }
+
+  setState: IModelSetter<IFieldState> = modelStateSetter(this)
+
+  getState: IModelGetter<IFieldState> = modelStateGetter(this)
+
+  onInit = () => {
+    this.initialized = true
+    batch.scope(() => {
+      initFieldValue(this)
+    })
+    batch.scope(() => {
+      initFieldUpdate(this)
+    })
+    this.form.notify(LifeCycleTypes.ON_FIELD_INIT, this)
+  }
+
+  onMount = () => {
+    this.mounted = true
+    this.unmounted = false
+    this.form.notify(LifeCycleTypes.ON_FIELD_MOUNT, this)
+  }
+
+  onUnmount = () => {
+    this.mounted = false
+    this.unmounted = true
+    this.form.notify(LifeCycleTypes.ON_FIELD_UNMOUNT, this)
+  }
+
+  onInput = async (...args: any[]) => {
+    if (args[0]?.target) {
+      if (!isHTMLInputEvent(args[0])) return
+    }
+    const values = getValuesFromEvent(args)
+    const value = values[0]
+    this.inputValue = value
+    this.inputValues = values
+    this.value = value
+    this.modified = true
+    this.form.modified = true
+    this.form.notify(LifeCycleTypes.ON_FIELD_INPUT_VALUE_CHANGE, this)
+    this.form.notify(LifeCycleTypes.ON_FORM_INPUT_CHANGE, this.form)
+    await this.validate('onInput')
+  }
+
+  onFocus = async (...args: any[]) => {
+    if (args[0]?.target) {
+      if (!isHTMLInputEvent(args[0], false)) return
+    }
+    this.active = true
+    this.visited = true
+    await this.validate('onFocus')
+  }
+
+  onBlur = async (...args: any[]) => {
+    if (args[0]?.target) {
+      if (!isHTMLInputEvent(args[0], false)) return
+    }
+    this.active = false
+    await this.validate('onBlur')
+  }
+
+  validate = async (triggerType?: ValidatorTriggerType) => {
+    const start = () => {
+      this.setValidating(true)
+      this.form.notify(LifeCycleTypes.ON_FIELD_VALIDATE_START, this)
+    }
+    const end = () => {
+      this.setValidating(false)
+      if (this.valid) {
+        this.form.notify(LifeCycleTypes.ON_FIELD_VALIDATE_SUCCESS, this)
+      } else {
+        this.form.notify(LifeCycleTypes.ON_FIELD_VALIDATE_FAILED, this)
+      }
+      this.form.notify(LifeCycleTypes.ON_FIELD_VALIDATE_END, this)
+    }
+    start()
+    if (!triggerType) {
+      const allTriggerTypes = parseValidatorDescriptions(this.validator).map(
+        (desc) => desc.triggerType
+      )
+      const results = {}
+      for (let i = 0; i < allTriggerTypes.length; i++) {
+        const payload = await validateToFeedbacks(this, allTriggerTypes[i])
+        each(payload, (result, key) => {
+          results[key] = results[key] || []
+          results[key] = results[key].concat(result)
+        })
+      }
+      end()
+      return results
+    }
+    const results = await validateToFeedbacks(this, triggerType)
+    end()
+    return results
+  }
+
+  reset = async (options?: IFieldResetOptions) => {
+    this.modified = false
+    this.visited = false
+    this.feedbacks = []
+    this.inputValue = undefined
+    this.inputValues = []
+    if (options?.forceClear) {
+      this.value = undefined
+    } else {
+      this.value = this.initialValue
+    }
+    this.form.notify(LifeCycleTypes.ON_FIELD_RESET, this)
+
+    if (options?.validate) {
+      return await this.validate()
+    }
+  }
+
+  query = (pattern: FormPathPattern) => {
+    return new Query({
+      pattern,
+      base: this.address,
+      form: this.form,
+    })
+  }
+
+  queryFeedbacks = (search?: ISearchFeedback): IFieldFeedback[] => {
+    return queryFeedbacks(this, search)
+  }
+
+  dispose = () => {
+    this.disposers.forEach((dispose) => {
+      dispose()
+    })
+    this.form.removeEffects(this)
+  }
+
+  match = (pattern: FormPathPattern) => {
+    return FormPath.parse(pattern).matchAliasGroup(this.address, this.path)
+  }
+}
